@@ -1,0 +1,67 @@
+# The auction bot and its dashboard, as one Dockge stack.
+#
+# Create a stack in Dockge, paste this in, then fill the values in its "Environment Variables" tab -
+# Dockge writes those to a .env beside this file, which is what every ${...} below reads. Anything
+# left blank degrades gracefully rather than crashing: no TOKEN runs the dashboard on its own, no
+# osu! credentials means no lookups, and the log says which is missing at boot.
+#
+# The stack keeps its state in ./data next to this file - purses, seeding, rosters and osu! links.
+# Back that up, and never point two stacks at the same directory.
+
+services:
+  fugue:
+    image: git.jansel.dev/jansel/fugue:latest
+    container_name: fugue
+    restart: unless-stopped
+
+    ports:
+      # Host side only - the app always listens on 8080 inside the container.
+      - "${HOST_PORT:-8080}:8080"
+
+    volumes:
+      - ./data:/bot/data
+
+    environment:
+      # --- Discord -------------------------------------------------------------------------------
+      # The bot token, and the OAuth2 credentials of that same application. Register
+      # <PUBLIC_URL>/callback as one of its redirect URIs.
+      TOKEN: ${TOKEN}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+
+      # Guild whose members may read the dashboard; Administrators there get write access.
+      GUILD_ID: ${GUILD_ID}
+
+      # Channel the auction card is posted in. Blank means auctions can only be started with
+      # /auction in Discord, never from the dashboard.
+      AUCTION_CHANNEL: ${AUCTION_CHANNEL:-}
+
+      # --- osu! ----------------------------------------------------------------------------------
+      # One OAuth2 application covers both halves: users prove which account is theirs through it,
+      # and the same credentials buy the app token every player and beatmap lookup needs. Register
+      # <PUBLIC_URL>/osu/callback as its callback URL.
+      OSU_CLIENT_ID: ${OSU_CLIENT_ID}
+      OSU_CLIENT_SECRET: ${OSU_CLIENT_SECRET}
+
+      # Set to false to let people use the dashboard without linking an osu! account.
+      OSU_LINK_REQUIRED: ${OSU_LINK_REQUIRED:-true}
+
+      # --- Dashboard -----------------------------------------------------------------------------
+      # Where the outside world reaches this stack, no trailing slash. Both OAuth2 redirects are
+      # built from it, so it has to match what is registered with Discord and with osu! exactly.
+      PUBLIC_URL: ${PUBLIC_URL}
+
+      # A long random string. Leave it unset and every restart logs everyone out.
+      SESSION_SECRET: ${SESSION_SECRET}
+
+      # Set to false to run the dashboard without connecting to Discord at all.
+      BOT_ENABLED: ${BOT_ENABLED:-true}
+
+    # An event-day bot runs for months at a time; without a cap the json-file log is the thing that
+    # eventually fills the disk.
+    logging:
+      driver: json-file
+
+      options:
+        max-size: 10m
+        max-file: "3"

@@ -47,6 +47,19 @@ The image listens on 8080 and keeps its three JSON stores in `/bot/data` — mou
 or an auction night dies with the container. `PUBLIC_URL` still has to name the address the outside
 world reaches, or both OAuth2 redirects will point at the container.
 
+### Dockge
+
+[`compose.yaml`](compose.yaml) is a ready stack. Create one in Dockge, paste the file in, and fill
+the values in its **Environment Variables** tab — Dockge writes them to a `.env` beside the compose
+file, which is where every `${...}` in it reads from. `HOST_PORT` moves the published port without
+touching anything else; the app always listens on 8080 inside the container.
+
+Anything left blank degrades rather than crashes: no `TOKEN` runs the dashboard on its own, no osu!
+credentials means no lookups, and the boot log names whichever is missing.
+
+The stack's state lands in `./data` next to the compose file — back that up, and never point two
+stacks at the same directory.
+
 ## Dashboard setup
 
 1. In the [Discord Developer Portal](https://discord.com/developers), open the same application the

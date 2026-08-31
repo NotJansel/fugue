@@ -2,6 +2,7 @@
 .git
 .github
 .forgejo
+compose.yaml
 .idea
 .junie
 .claude

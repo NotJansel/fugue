@@ -1,5 +1,5 @@
 import { defineEventHandler, sendRedirect } from 'h3'
-import { config, osuOauthConfigured } from '../../utils/config'
+import { config, missingOsuVars } from '../../utils/config'
 import { lang, pick } from '../../utils/lang'
 import { renderNotice } from '../../utils/notice'
 import { issueState } from '../../utils/oauth-state'
@@ -16,15 +16,17 @@ export default defineEventHandler(async (event) => {
 
   if (!await getUserSession(event)) return sendRedirect(event, '/login')
 
-  if (!osuOauthConfigured()) {
+  const missing = missingOsuVars()
+
+  if (missing.length > 0) {
     return renderNotice(event, {
       status: 503,
       lang: language,
       title: pick(language, 'osu! linking is not configured', 'Die osu!-Verknüpfung ist nicht konfiguriert'),
       message: pick(
         language,
-        'Set OSU_CLIENT_ID and OSU_CLIENT_SECRET to enable it.',
-        'Setze OSU_CLIENT_ID und OSU_CLIENT_SECRET, um sie zu aktivieren.'
+        `Linking needs OSU_CLIENT_ID and OSU_CLIENT_SECRET. Still blank: ${missing.join(', ')}.`,
+        `Die Verknüpfung braucht OSU_CLIENT_ID und OSU_CLIENT_SECRET. Noch leer: ${missing.join(', ')}.`
       ),
       links: [{ href: '/', label: pick(language, 'Back to the dashboard', 'Zurück zum Dashboard') }]
     })

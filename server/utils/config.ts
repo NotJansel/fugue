@@ -74,25 +74,44 @@ export const config = {
   dataDir: str('DATA_DIR') ?? 'data'
 }
 
+/**
+ * Which of the variables Discord login needs are still blank.
+ *
+ * Named one by one rather than as a yes/no, because "login is not configured" reads as "your
+ * credentials are wrong" when in fact two of the three are fine and only the guild is missing.
+ */
+export const missingOauthVars = (): string[] => ([
+  ['OAUTH_CLIENT_ID', config.oauthClientId],
+  ['OAUTH_CLIENT_SECRET', config.oauthClientSecret],
+  ['GUILD_ID', config.guildId]
+] as const).filter(([, value]) => !value).map(([name]) => name)
+
 /** OAuth2 is only usable once the application credentials and the guild to check against are known. */
-export const oauthConfigured = (): boolean =>
-  Boolean(config.oauthClientId && config.oauthClientSecret && config.guildId)
+export const oauthConfigured = (): boolean => missingOauthVars().length === 0
+
+/** The osu! half of the same question - see [missingOauthVars]. */
+export const missingOsuVars = (): string[] => ([
+  ['OSU_CLIENT_ID', config.osuClientId],
+  ['OSU_CLIENT_SECRET', config.osuClientSecret]
+] as const).filter(([, value]) => !value).map(([name]) => name)
 
 /** Whether users can be sent through the osu! half of the login flow at all. */
-export const osuOauthConfigured = (): boolean => Boolean(config.osuClientId && config.osuClientSecret)
+export const osuOauthConfigured = (): boolean => missingOsuVars().length === 0
 
 /** Whether an unlinked session is refused access rather than merely nudged to link. */
 export const osuLinkEnforced = (): boolean => osuOauthConfigured() && config.osuLinkRequired
 
 /** Logs anything missing but not fatal, so misconfiguration shows up at boot rather than later on. */
 export function warnAboutMissingValues(): void {
-  if (!oauthConfigured()) {
-    console.warn('[config] Dashboard login is disabled: set OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET and GUILD_ID')
+  const missingOauth = missingOauthVars()
+  if (missingOauth.length > 0) {
+    console.warn(`[config] Dashboard login is disabled - still blank: ${missingOauth.join(', ')}`)
   }
 
-  if (!osuOauthConfigured()) {
+  const missingOsu = missingOsuVars()
+  if (missingOsu.length > 0) {
     console.warn(
-      '[config] Set OSU_CLIENT_ID and OSU_CLIENT_SECRET - without them nobody can link an osu! '
+      `[config] Still blank: ${missingOsu.join(', ')} - without them nobody can link an osu! `
       + 'account, and no player or beatmap can be looked up'
     )
   }

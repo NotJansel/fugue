@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="coin" x1="6" y1="4" x2="42" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DDB13A"/>
+      <stop offset="0.55" stop-color="#A87D1D"/>
+      <stop offset="1" stop-color="#85191A"/>
+    </linearGradient>
+  </defs>
+  <rect x="3" y="3" width="42" height="42" rx="13" fill="url(#coin)"/>
+  <rect x="6.5" y="6.5" width="35" height="35" rx="10" fill="#2E0A0B" fill-opacity="0.72"/>
+  <path d="M30.5 17.4c-1.5-1.4-3.4-2.2-5.6-2.2-3.7 0-6.8 2.3-8 5.6h10.4l-1 2.6H16.4a9.6 9.6 0 0 0 0 1.2h9.3l-1 2.6h-7.8c1.2 3.3 4.3 5.6 8 5.6 2.2 0 4.1-.8 5.6-2.2"
+    stroke="#E8C75F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

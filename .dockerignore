@@ -1,0 +1,24 @@
+# Everything the build makes for itself, or must never reach an image.
+.git
+.github
+.forgejo
+.idea
+.junie
+.claude
+.nuxt
+.nitro
+.cache
+.output
+.data
+node_modules
+dist
+
+# Tournament state and secrets belong to a deployment, not to an image layer.
+data
+.env
+.env.*
+!.env.example
+
+logs
+*.log
+.DS_Store

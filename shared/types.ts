@@ -1,0 +1,326 @@
+/**
+ * Everything the dashboard and the server agree on.
+ *
+ * The persisted shapes (`TournamentState`, `TournamentPlayer`, …) are the same JSON that the Kotlin
+ * version wrote, so `data/tournament.json`, `data/purses.json` and `data/osu_links.json` carry over
+ * from an existing deployment untouched.
+ */
+
+/** How a player's captain status is decided. */
+export type CaptainMode = 'AUTO' | 'FORCE' | 'EXCLUDE'
+
+/**
+ * A player imported from the qualifier sheet. The seeding position is *not* stored here - it is the
+ * player's index in `TournamentState.players`, so reordering is a list operation.
+ */
+export interface TournamentPlayer {
+  /** osu! user ID. Used as the stable primary key everywhere, including roster entries. */
+  osuId: string
+  username: string
+  /** Discord user this player controls. Required for captains, since bids are keyed by Discord ID. */
+  discordId?: string | null
+  /** Qualifier metric the import sorted on (z-score, accuracy, points - whatever the sheet holds). */
+  qualScore?: number | null
+  /** Seed as stated by the sheet, kept for reference after manual reordering. */
+  sheetSeed?: number | null
+  ppRaw?: number | null
+  ppRank?: number | null
+  captainMode: CaptainMode
+  /** Remaining sheet columns, kept so the dashboard can show them without a schema change. */
+  extra: Record<string, string>
+}
+
+/**
+ * One slot of the qualifier mappool.
+ *
+ * Scores are *not* copied in here: `column` names the sheet column that holds them, and the values
+ * stay in `TournamentPlayer.extra` where the import left them. That way the pool can be defined,
+ * re-labelled or re-pointed at a different column long after the import, with no migration.
+ */
+export interface QualifierMap {
+  /** Stable key, so results survive re-labelling and reordering. Assigned on save when blank. */
+  id: string
+  /** Slot name as the pool sheet calls it, e.g. "NM1". */
+  label: string
+  /** Round this slot belongs to, e.g. "Qualifiers", "RO16". Blank means ungrouped, not hidden. */
+  stage: string
+  /**
+   * Mods the slot is played with, canonical and uppercase ("HDDT"), empty for a no-mod, free-mod or
+   * tiebreaker slot. Taken from `label` whenever the organiser leaves it alone.
+   */
+  mods: string
+  /** Header of the sheet column holding each player's score on this map. */
+  column?: string | null
+  /** osu! beatmap (difficulty) ID - the link target, and what metadata is looked up with. */
+  beatmapId?: string | null
+  /** Filled in from the osu! API, so the pool reads as maps rather than as column names. */
+  beatmapsetId?: string | null
+  artist?: string | null
+  title?: string | null
+  version?: string | null
+  /** Star rating *with `mods` applied* - a DT slot is worth naming at its DT rating. */
+  stars?: number | null
+  /** Difficulty settings, also with `mods` applied - see `server/utils/difficulty.ts`. */
+  cs?: number | null
+  ar?: number | null
+  od?: number | null
+  hp?: number | null
+  bpm?: number | null
+  lengthSeconds?: number | null
+}
+
+/** What a player put up on one qualifier map, and where that placed them in the field. */
+export interface MapScore {
+  value: number
+  /** The cell as the sheet wrote it, so separators and decimals show up the way organisers expect. */
+  display: string
+  rank: number
+}
+
+/** A player bought at auction, recorded against the winning captain. */
+export interface TeamMember {
+  osuId: string
+  price: number
+}
+
+/** Which sheet column feeds which player field. Values are header names as they appear in the sheet. */
+export interface ColumnMapping {
+  username: string
+  osuId?: string | null
+  discordId?: string | null
+  score?: string | null
+  seed?: string | null
+}
+
+/** Which column of the *mappool* sheet feeds which slot field. A different document to the results. */
+export interface MappoolColumnMapping {
+  /** Slot name, e.g. "NM1". Required - it is what a row is. */
+  label: string
+  /** Beatmap ID, or any link with one in it. */
+  beatmapId?: string | null
+  /** Header of the qualifier-sheet column holding scores for this map. */
+  scoreColumn?: string | null
+}
+
+/** Everything needed to re-run an import without re-entering it. */
+export interface SheetImportConfig {
+  url: string
+  sheetName?: string | null
+  mapping: ColumnMapping
+  /** Epoch millis of the last successful import. */
+  importedAt?: number | null
+}
+
+/** Everything needed to re-run a mappool import without re-entering it. */
+export interface MappoolSheetConfig {
+  url: string
+  sheetName?: string | null
+  mapping: MappoolColumnMapping
+  importedAt?: number | null
+  /** Round the last import filled in - all rounds share the one sheet, so only this varies. */
+  stage?: string | null
+}
+
+/**
+ * The whole tournament, persisted as one JSON document.
+ *
+ * Rosters are keyed by captain osu! ID rather than embedded in a team object, so changing who the
+ * captains are can never leave a team record orphaned or duplicated.
+ */
+export interface TournamentState {
+  /** Players in seeding order: index 0 is seed 1. */
+  players: TournamentPlayer[]
+  /** Players per team, captain included. Drives the captain count. */
+  teamSize: number
+  /** Set to pin the captain count instead of deriving it from `teamSize`. */
+  captainCountOverride?: number | null
+  seedingLocked: boolean
+  defaultStartingBid: number
+  defaultMaxBid: number
+  /** captain osu! ID -> players they won. */
+  rosters: Record<string, TeamMember[]>
+  /** captain osu! ID -> team name. */
+  teamNames: Record<string, string>
+  /** The qualifier mappool, in pool order. */
+  mappool: QualifierMap[]
+  sheet?: SheetImportConfig | null
+  /** Where the mappool was last imported from - a different document to `sheet` as a rule. */
+  mappoolSheet?: MappoolSheetConfig | null
+}
+
+/** An osu! account whose owner proved themselves through osu! OAuth2. */
+export interface OsuLink {
+  osuId: string
+  username: string
+  avatarUrl?: string | null
+  countryCode?: string | null
+  ppRaw?: number | null
+  ppRank?: number | null
+  /** Epoch millis of the most recent successful osu! login. */
+  linkedAt: number
+}
+
+/**
+ * A problem worth surfacing on the dashboard.
+ *
+ * `code` and `args` are what the dashboard translates; `text` is the same thing in English, so a
+ * warning still reads correctly anywhere the dictionary is not available.
+ */
+export interface TournamentWarning {
+  code: string
+  args: Record<string, string>
+  text: string
+}
+
+/** A logged-in dashboard user. */
+export interface UserSession {
+  id: string
+  username: string
+  avatar?: string | null
+  /**
+   * Resolved once at login from the user's Discord permissions; losing Administrator in the guild
+   * therefore only takes effect on their next login, which is fine for an event-day tool.
+   */
+  admin: boolean
+  osuId?: string | null
+  osuUsername?: string | null
+  osuAvatar?: string | null
+}
+
+/** Read-only view of the running auction, safe to serialise to the dashboard. */
+export interface AuctionSnapshot {
+  osuId: string
+  username: string
+  ppRaw: number
+  ppRank: number
+  seed: number
+  startingBid: number
+  maxBid: number
+  highestBid: number
+  highestBidderId: string | null
+  /** Epoch millis at which the current countdown lapses, so clients can render it themselves. */
+  endsAt: number
+  channelId: string
+  messageId: string
+}
+
+/** A player as the dashboard sees them: stored fields plus everything derived from them. */
+export interface PlayerDto {
+  osuId: string
+  username: string
+  /** 1-based position in the seeding. */
+  seed: number
+  discordId: string | null
+  /** Whether `discordId` comes from this player signing in with their own osu! account. */
+  discordVerified: boolean
+  qualScore: number | null
+  sheetSeed: number | null
+  ppRaw: number | null
+  ppRank: number | null
+  captainMode: CaptainMode
+  isCaptain: boolean
+  /** osu! ID of the captain who bought this player, if any. */
+  soldTo: string | null
+  price: number | null
+  /** Purse balance of the linked Discord account, for captains. `null` for a guest viewer. */
+  balance: number | null
+  held: number | null
+  /** Qualifier results keyed by mappool slot id. */
+  mapScores: Record<string, MapScore>
+  extra: Record<string, string>
+}
+
+export interface TeamMemberDto {
+  osuId: string
+  username: string
+  seed: number
+  price: number
+}
+
+/** `balance`/`held` are `null` for a guest viewer - not "empty purse". */
+export interface TeamDto {
+  captainOsuId: string
+  captainName: string
+  captainSeed: number
+  name: string
+  discordId: string | null
+  balance: number | null
+  held: number | null
+  spent: number
+  members: TeamMemberDto[]
+  slotsLeft: number
+}
+
+export interface ConfigDto {
+  teamSize: number
+  /** Effective number of captains, whether derived or pinned. */
+  captainCount: number
+  /** Set when the count is pinned rather than derived from the team size. */
+  captainCountOverride: number | null
+  defaultStartingBid: number
+  defaultMaxBid: number
+  seedingLocked: boolean
+  auctionChannelConfigured: boolean
+  /**
+   * Whether the osu! OAuth2 application is set up. One credential covers both halves - linking an
+   * account and looking players and beatmaps up - so this gates both.
+   */
+  osuConfigured: boolean
+  botConnected: boolean
+}
+
+/** Progress of a running sheet import. Rendered by the client, so it carries numbers not prose. */
+export interface ImportProgress {
+  done: number
+  total: number
+}
+
+/**
+ * `user` is `null` for an anonymous viewer - the dashboard is readable without logging in, just with
+ * Discord IDs, purse balances, spare sheet columns and the raw sheet links stripped out.
+ */
+export interface DashboardState {
+  user: UserSession | null
+  config: ConfigDto
+  players: PlayerDto[]
+  teams: TeamDto[]
+  mappool: QualifierMap[]
+  /** Imported sheet columns not bound to a player field - what a mappool slot draws scores from. */
+  sheetColumns: string[]
+  mappoolSheet: MappoolSheetConfig | null
+  auction: AuctionSnapshot | null
+  /** Display name of the leading bidder, resolved against the captain list. */
+  auctionLeader: string | null
+  warnings: TournamentWarning[]
+  sheet: SheetImportConfig | null
+  importProgress: ImportProgress | null
+  poolRemaining: number
+}
+
+/** What the dashboard shows when you paste a link, so columns can be mapped before importing. */
+export interface SheetPreview {
+  headers: string[]
+  sampleRows: Record<string, string>[]
+  rowCount: number
+  suggestedMapping: ColumnMapping | null
+  suggestedMappoolMapping: MappoolColumnMapping | null
+}
+
+/**
+ * `error` is English prose and `code` names the same message in the dashboard's dictionary, with
+ * `args` filling its placeholders - so every response stays readable on its own, in a log or to any
+ * other caller of this API.
+ */
+export interface ApiError {
+  error: string
+  link?: string
+  code?: string
+  args?: Record<string, string>
+}
+
+export interface ApiOk {
+  ok: true
+  message?: string
+  code?: string
+  args?: Record<string, string>
+}

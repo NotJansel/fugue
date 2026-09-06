@@ -14,6 +14,12 @@ import { parseSheetNumber } from './tournament-model'
 export interface SheetData {
   headers: string[]
   rows: Record<string, string>[]
+  /**
+   * The 1-based row number each entry of [rows] came from, counting every row of the sheet - blank
+   * ones included. Blank rows are dropped from [rows] but they still occupy a line on the
+   * organiser's screen, so this is what makes a typed row range mean what it looks like.
+   */
+  rowNumbers: number[]
 }
 
 const docIdPattern = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
@@ -97,6 +103,39 @@ function matchAlias(headers: string[], aliases: string[]): string | null {
   return null
 }
 
+const filledCells = (row: string[]): number => row.filter(cell => cell.trim() !== '').length
+
+/**
+ * Whether `titles` is a spanning heading over `names` rather than a header row of its own.
+ *
+ * Sheets like to put one merged heading over a block of columns - "Per-map rank" across ten of them -
+ * with the real column names on the line below. A merge only writes its text into its first cell, so
+ * such a row comes back with a couple of labels and a lot of blanks, which is what tells it apart
+ * from a header row: far fewer filled cells than the row underneath it.
+ */
+const isSpanningHeading = (titles: string[], names: string[]): boolean =>
+  filledCells(titles) > 0 && filledCells(titles) * 2 < filledCells(names)
+
+/**
+ * Folds a spanning heading into the names below it, so each column carries its whole heading:
+ * "Per-map rank NM1", "Per-map rank NM2", … then "Per-map score NM1", and so on.
+ *
+ * Without this the second column of each block reads as a bare "NM2" in both blocks, and nothing
+ * downstream can tell a rank from a score.
+ */
+function foldSpanningHeading(titles: string[], names: string[]): string[] {
+  let heading = ''
+
+  return names.map((name, index) => {
+    const title = titles[index]?.trim()
+    if (title) heading = title
+
+    const label = name.trim()
+
+    return heading && label ? `${heading} ${label}` : label
+  })
+}
+
 /** Headers can repeat, and a repeated header would silently overwrite the column before it. */
 function dedupeHeaders(headers: string[]): string[] {
   const seen = new Map<string, number>()
@@ -146,14 +185,25 @@ export function toCsvUrl(input: string, sheetName?: string | null): string | nul
   if (docId == null) return null
 
   const base = `https://docs.google.com/spreadsheets/d/${docId}`
+  const gid = gidPattern.exec(trimmed)?.[1]
+
+  // A link that carries a gid already says which tab it means, and `export` answers with the raw
+  // grid - the same rows, in the same positions, that Google Sheets puts on the organiser's screen.
+  // `gviz` trims leading empty rows away before it answers, which silently shifts every row number,
+  // so it is only used when the tab name is the one thing identifying the sheet.
+  if (gid) {
+    if (sheetName?.trim()) {
+      console.warn(`[sheets] The link already points at a tab (gid=${gid}) - ignoring the tab name`)
+    }
+
+    return `${base}/export?format=csv&gid=${gid}`
+  }
 
   if (sheetName?.trim()) {
     return `${base}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName.trim())}`
   }
 
-  const gid = gidPattern.exec(trimmed)?.[1]
-
-  return gid ? `${base}/export?format=csv&gid=${gid}` : `${base}/export?format=csv`
+  return `${base}/export?format=csv`
 }
 
 /**
@@ -205,15 +255,30 @@ export async function fetchSheet(input: string, sheetName?: string | null): Prom
     )
   }
 
-  const rows = parseCsv(body).filter(row => row.some(cell => cell.trim() !== ''))
-  if (rows.length === 0) throw apiError(400, 'The sheet appears to be empty.', 'err.sheet.empty')
+  // Numbered before the blank ones are dropped: a sheet that opens with two empty rows still has its
+  // header on row 3, and that is the number the organiser sees beside it.
+  const numbered = parseCsv(body)
+    .map((row, index) => ({ row, number: index + 1 }))
+    .filter(({ row }) => row.some(cell => cell.trim() !== ''))
 
-  const headers = dedupeHeaders(rows[0]!.map(header => header.trim()))
-  const dataRows = rows.slice(1).map(row =>
-    Object.fromEntries(headers.map((header, index) => [header, (row[index] ?? '').trim()]))
+  if (numbered.length === 0) throw apiError(400, 'The sheet appears to be empty.', 'err.sheet.empty')
+
+  const first = numbered[0]!.row
+  const second = numbered[1]?.row
+  const spanning = second != null && isSpanningHeading(first, second)
+
+  const headers = dedupeHeaders(
+    (spanning ? foldSpanningHeading(first, second) : first).map(header => header.trim())
   )
+  const data = numbered.slice(spanning ? 2 : 1)
 
-  return { headers, rows: dataRows }
+  return {
+    headers,
+    rows: data.map(({ row }) =>
+      Object.fromEntries(headers.map((header, index) => [header, (row[index] ?? '').trim()]))
+    ),
+    rowNumbers: data.map(({ number }) => number)
+  }
 }
 
 /** Best-effort guess at which column is which, based on common tournament sheet headers. */
@@ -283,8 +348,11 @@ export async function previewSheet(input: string, sheetName?: string | null): Pr
  * brackets. Beatmap cells may hold a bare ID or any osu! link; only the ID is kept.
  *
  * `startRow`/`endRow` narrow the sheet down to one round's block of rows, when every round is
- * published as rows of the same sheet: they are 1-based and count the header as row 1, matching the
- * row numbers Google Sheets itself shows, so a leftover bound outside the data is simply clamped.
+ * published as rows of the same sheet. Both bounds are inclusive and are the row numbers Google
+ * Sheets itself puts down the left-hand side, matched against [SheetData.rowNumbers] rather than
+ * against a position in the list - blank rows are dropped from the list but still take up a line on
+ * screen, so counting positions would land somewhere else entirely. A bound outside the sheet simply
+ * matches nothing at that end.
  */
 export function toMaps(
   data: SheetData,
@@ -292,11 +360,16 @@ export function toMaps(
   startRow?: number | null,
   endRow?: number | null
 ): QualifierMap[] {
-  const clamp = (value: number) => Math.min(Math.max(value, 0), data.rows.length)
-  const from = clamp((startRow ?? 2) - 2)
-  const to = Math.max(clamp((endRow ?? (data.rows.length + 1)) - 1), from)
+  const from = startRow ?? Number.NEGATIVE_INFINITY
+  const to = endRow ?? Number.POSITIVE_INFINITY
 
-  return data.rows.slice(from, to).flatMap((row) => {
+  const inRange = data.rows.filter((_, index) => {
+    const number = data.rowNumbers[index]!
+
+    return number >= from && number <= to
+  })
+
+  return inRange.flatMap((row) => {
     const label = row[mapping.label]?.trim()
     if (!label) return []
 

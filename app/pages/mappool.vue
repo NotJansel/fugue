@@ -116,7 +116,10 @@ const results = computed(() => {
       cells: scored.value.map(map => player.mapScores[map.id] ?? null),
       total: scored.value.reduce((sum, map) => sum + (player.mapScores[map.id]?.value ?? 0), 0)
     }))
-    .sort((a, b) => b.total - a.total)
+    // By seed, so the table reads in the same order as the seeding page and a row can be found by
+    // the number an organiser already has in their head. `players` arrives in that order anyway -
+    // sorting says so out loud rather than depending on it.
+    .sort((a, b) => a.player.seed - b.player.seed)
 })
 
 const bound = computed(() => maps.value.filter(map => map.column).length)

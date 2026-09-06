@@ -5,7 +5,16 @@ import { botConnected } from '../bot/client'
 import { currentImportProgress } from './import-progress'
 import { allOsuLinks } from './osu-link-store'
 import { getAllBalances, getAllHolds } from './purse-store'
-import { captainCount, captains, mapScores, spareSheetColumns, warnings } from './tournament-model'
+import {
+  captainCount,
+  captains,
+  field,
+  mapScores,
+  reserveFor,
+  spareSheetColumns,
+  startingBid,
+  warnings
+} from './tournament-model'
 import { getTournament } from './tournament-store'
 
 /** What a player looks like to a viewer who hasn't logged in. */
@@ -43,6 +52,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
 
   const chosenCaptains = captains(tournament)
   const captainIds = new Set(chosenCaptains.map(player => player.osuId))
+  const takingPart = new Set(field(tournament).map(player => player.osuId))
   const seeds = new Map(tournament.players.map((player, index) => [player.osuId, index + 1]))
   const scores = mapScores(tournament)
 
@@ -65,6 +75,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       ppRaw: player.ppRaw ?? null,
       ppRank: player.ppRank ?? null,
       captainMode: player.captainMode,
+      inField: takingPart.has(player.osuId),
       isCaptain: captainIds.has(player.osuId),
       soldTo: purchase?.captainOsuId ?? null,
       price: purchase?.price ?? null,
@@ -96,7 +107,9 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
         price: member.price
       })),
       // The captain occupies one of the team's slots.
-      slotsLeft: Math.max(tournament.teamSize - 1 - members.length, 0)
+      slotsLeft: Math.max(tournament.teamSize - 1 - members.length, 0),
+      slotsToMinimum: Math.max(tournament.minTeamSize - 1 - members.length, 0),
+      reserved: reserveFor(tournament, captain.osuId)
     }
   })
 
@@ -114,10 +127,17 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     user,
     config: {
       teamSize: tournament.teamSize,
+      minTeamSize: tournament.minTeamSize,
+      fieldSize: tournament.fieldSize ?? null,
+      fieldTotal: tournament.players.length,
       captainCount: captainCount(tournament),
       captainCountOverride: tournament.captainCountOverride ?? null,
       defaultStartingBid: tournament.defaultStartingBid,
       defaultMaxBid: tournament.defaultMaxBid,
+      minBidIncrement: tournament.minBidIncrement,
+      maxBidIncrement: tournament.maxBidIncrement,
+      secondRun: tournament.secondRun,
+      startingBid: startingBid(tournament),
       seedingLocked: tournament.seedingLocked,
       auctionChannelConfigured: config.auctionChannelId != null,
       osuConfigured: osuOauthConfigured(),
@@ -133,6 +153,6 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     warnings: warnings(tournament),
     sheet: guest ? null : tournament.sheet ?? null,
     importProgress: currentImportProgress(),
-    poolRemaining: players.filter(player => !player.isCaptain && player.soldTo == null).length
+    poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
   }
 }

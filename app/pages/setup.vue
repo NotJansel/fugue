@@ -4,10 +4,15 @@ const { t } = useLang()
 const { money } = useFormat()
 
 const teamSize = ref(4)
+const minTeamSize = ref(0)
+const wholeField = ref(true)
+const fieldSize = ref(0)
 const autoCaptains = ref(true)
 const captainCount = ref(0)
 const defaultStartingBid = ref(0)
 const defaultMaxBid = ref(0)
+const minBidIncrement = ref(1)
+const maxBidIncrement = ref(0)
 
 // The form follows the server until it is saved, so a second organiser's change is never overwritten
 // by a stale field left open in this tab.
@@ -16,10 +21,15 @@ watchEffect(() => {
   if (!config) return
 
   teamSize.value = config.teamSize
+  minTeamSize.value = config.minTeamSize
+  wholeField.value = config.fieldSize == null
+  fieldSize.value = config.fieldSize ?? config.fieldTotal
   autoCaptains.value = config.captainCountOverride == null
   captainCount.value = config.captainCountOverride ?? config.captainCount
   defaultStartingBid.value = config.defaultStartingBid
   defaultMaxBid.value = config.defaultMaxBid
+  minBidIncrement.value = config.minBidIncrement
+  maxBidIncrement.value = config.maxBidIncrement
 })
 
 const explainer = computed(() => t('setup.format.explainer', {
@@ -31,10 +41,15 @@ const explainer = computed(() => t('setup.format.explainer', {
 
 const saveFormat = () => api('/api/config', {
   teamSize: teamSize.value,
+  minTeamSize: minTeamSize.value,
+  fieldSize: wholeField.value ? null : fieldSize.value,
+  wholeField: wholeField.value,
   captainCount: autoCaptains.value ? null : captainCount.value,
   autoCaptainCount: autoCaptains.value,
   defaultStartingBid: defaultStartingBid.value,
-  defaultMaxBid: defaultMaxBid.value
+  defaultMaxBid: defaultMaxBid.value,
+  minBidIncrement: minBidIncrement.value,
+  maxBidIncrement: maxBidIncrement.value
 })
 
 const bulkPurse = ref(0)
@@ -81,16 +96,48 @@ const setDiscordId = (osuId: string, discordId: string) =>
           </template>
 
           <div class="space-y-4">
-            <UFormField
-              :label="t('setup.format.teamSize')"
-              :help="t('setup.format.teamSizeHint')"
-            >
-              <UInputNumber
-                v-model="teamSize"
-                :min="1"
-                class="w-40"
-              />
+            <UFormField :label="t('setup.format.field')">
+              <div class="flex flex-wrap items-center gap-3">
+                <UCheckbox
+                  v-model="wholeField"
+                  :label="t('setup.format.wholeField')"
+                />
+                <UInputNumber
+                  v-model="fieldSize"
+                  :min="0"
+                  :disabled="wholeField"
+                  class="w-32"
+                />
+                <span class="text-xs text-muted">{{ t('setup.format.fieldOf', { total: state?.config.fieldTotal ?? 0 }) }}</span>
+              </div>
+              <p class="mt-2 text-xs text-muted">
+                {{ t('setup.format.fieldHint') }}
+              </p>
             </UFormField>
+
+            <div class="flex flex-wrap gap-4">
+              <UFormField
+                :label="t('setup.format.teamSize')"
+                :help="t('setup.format.teamSizeHint')"
+              >
+                <UInputNumber
+                  v-model="teamSize"
+                  :min="1"
+                  class="w-32"
+                />
+              </UFormField>
+
+              <UFormField
+                :label="t('setup.format.minTeamSize')"
+                :help="t('setup.format.minTeamSizeHint')"
+              >
+                <UInputNumber
+                  v-model="minTeamSize"
+                  :min="0"
+                  class="w-32"
+                />
+              </UFormField>
+            </div>
 
             <UFormField :label="t('setup.format.captains')">
               <div class="flex flex-wrap items-center gap-3">
@@ -122,6 +169,26 @@ const setDiscordId = (osuId: string, discordId: string) =>
                   v-model="defaultMaxBid"
                   :min="0"
                   :placeholder="t('setup.format.max')"
+                  class="w-36"
+                />
+              </div>
+            </UFormField>
+
+            <UFormField
+              :label="t('setup.format.steps')"
+              :help="t('setup.format.maxStepHint')"
+            >
+              <div class="flex flex-wrap gap-3">
+                <UInputNumber
+                  v-model="minBidIncrement"
+                  :min="1"
+                  :placeholder="t('setup.format.minStep')"
+                  class="w-36"
+                />
+                <UInputNumber
+                  v-model="maxBidIncrement"
+                  :min="0"
+                  :placeholder="t('setup.format.maxStep')"
                   class="w-36"
                 />
               </div>

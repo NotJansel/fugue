@@ -10,7 +10,7 @@ import type { AuctionSnapshot } from '#shared/types'
  */
 const props = defineProps<{ auction: AuctionSnapshot }>()
 
-const { api, user, myCaptain, myTeam } = useDashboard()
+const { state, api, user, myCaptain, myTeam } = useDashboard()
 const { t } = useLang()
 const { money } = useFormat()
 
@@ -20,22 +20,46 @@ const pending = ref(false)
 const available = computed(() => (myTeam.value?.balance ?? 0) - (myTeam.value?.held ?? 0))
 const leading = computed(() => props.auction.highestBidderId != null && props.auction.highestBidderId === user.value?.id)
 
-/** The smallest bid that would actually take: one over the leader, or the starting price if untouched. */
-const minimum = computed(() =>
-  props.auction.highestBidderId == null
-    ? Math.max(props.auction.startingBid, 0)
-    : props.auction.highestBid + 1
+/** Gold that cannot be spent here, because the team still has to reach its smallest legal size. */
+const reserved = computed(() => myTeam.value?.reserved ?? 0)
+const teamFull = computed(() => (myTeam.value?.slotsLeft ?? 1) === 0)
+
+/**
+ * The window a legal bid falls in.
+ *
+ * The opening bid is measured from the starting price and every later one from the standing bid, so
+ * the same two steps bound both - which is exactly how the server decides, spelled out here so a
+ * captain sees the range rather than discovering it through a rejection.
+ */
+const standing = computed(() =>
+  props.auction.highestBidderId == null ? props.auction.startingBid : props.auction.highestBid
 )
+
+const minimum = computed(() => props.auction.highestBidderId == null
+  ? props.auction.startingBid
+  : standing.value + Math.max(state.value?.config.minBidIncrement ?? 1, 1))
+
+const maximum = computed(() => {
+  const step = state.value?.config.maxBidIncrement ?? 0
+  const byStep = step > 0 ? standing.value + step : props.auction.maxBid
+
+  return Math.min(byStep, props.auction.maxBid, Math.max(available.value - reserved.value, 0))
+})
 
 watchEffect(() => {
   if (amount.value < minimum.value) amount.value = Math.min(minimum.value, props.auction.maxBid)
 })
 
-const steps = [1, 5, 10, 25]
+const steps = [100, 500, 1000]
 
 const bump = (by: number) => {
-  amount.value = Math.min(Math.max(amount.value + by, minimum.value), props.auction.maxBid)
+  amount.value = Math.min(Math.max(amount.value + by, minimum.value), maximum.value)
 }
+
+/** Whether the number in the box is one the server would take. */
+const legal = computed(() =>
+  !leading.value && !teamFull.value && amount.value >= minimum.value && amount.value <= maximum.value
+)
 
 async function bid() {
   pending.value = true
@@ -90,6 +114,13 @@ async function bid() {
       {{ t('auction.bid.notCaptain') }}
     </p>
 
+    <p
+      v-else-if="teamFull"
+      class="text-sm text-warning"
+    >
+      {{ t('auction.bid.teamFull') }}
+    </p>
+
     <div
       v-else
       class="space-y-4"
@@ -116,12 +147,23 @@ async function bid() {
         </div>
       </div>
 
-      <UFormField :label="t('auction.bid.amount')">
+      <p
+        v-if="reserved > 0"
+        class="rounded-lg bg-elevated/40 px-3 py-2 text-xs text-muted"
+      >
+        {{ t('auction.bid.reserved', { count: myTeam?.slotsToMinimum ?? 0 }) }}
+        <span class="text-default tnum">{{ money(reserved) }}</span>
+      </p>
+
+      <UFormField
+        :label="t('auction.bid.amount')"
+        :help="t('auction.bid.range', { min: money(minimum), max: money(maximum) })"
+      >
         <UInputNumber
           v-model="amount"
           :min="minimum"
-          :max="auction.maxBid"
-          :step="1"
+          :max="maximum"
+          :step="state?.config.minBidIncrement ?? 1"
           size="xl"
           class="w-full"
           :ui="{ base: 'tnum font-display text-xl' }"
@@ -143,9 +185,9 @@ async function bid() {
           size="xs"
           color="neutral"
           variant="subtle"
-          @click="amount = auction.maxBid"
+          @click="amount = maximum"
         >
-          {{ money(auction.maxBid) }}
+          {{ money(maximum) }}
         </UButton>
       </div>
 
@@ -154,7 +196,7 @@ async function bid() {
         size="lg"
         icon="i-lucide-gavel"
         :loading="pending"
-        :disabled="leading || amount > available"
+        :disabled="!legal"
         @click="bid"
       >
         {{ t('auction.bid.place') }}

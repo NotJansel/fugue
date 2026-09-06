@@ -10,13 +10,19 @@ const starting = ref<string | null>(null)
 // The defaults live with the tournament, so a reload - or a second organiser's tab - starts from the
 // same bid range rather than from zero.
 watchEffect(() => {
-  startingBid.value = state.value?.config.defaultStartingBid ?? 0
+  // The effective opening price, so the second run's half price is already in the box.
+  startingBid.value = state.value?.config.startingBid ?? 0
   maxBid.value = state.value?.config.defaultMaxBid ?? 0
 })
 
+const secondRun = computed(() => state.value?.config.secondRun === true)
+
+const toggleSecondRun = (value: boolean) => api('/api/config', { secondRun: value }, { quiet: true })
+
 const teamNames = computed(() => new Map(teams.value.map(team => [team.captainOsuId, team.name])))
 
-const pool = computed(() => players.value.filter(player => !player.isCaptain))
+// Only the field takes part: anyone below the cut keeps their seed and results but is not for sale.
+const pool = computed(() => players.value.filter(player => player.inField && !player.isCaptain))
 const unsold = computed(() => pool.value.filter(player => player.soldTo == null))
 
 const canStart = computed(() =>
@@ -50,6 +56,13 @@ async function start(osuId: string) {
         v-if="isAdmin"
         class="flex flex-wrap items-end gap-3"
       >
+        <USwitch
+          :model-value="secondRun"
+          :label="t('pool.secondRun')"
+          color="secondary"
+          class="mb-2"
+          @update:model-value="toggleSecondRun($event)"
+        />
         <UFormField
           :label="t('pool.start')"
           size="sm"
@@ -72,6 +85,14 @@ async function start(osuId: string) {
         </UFormField>
       </div>
     </div>
+
+    <UAlert
+      v-if="secondRun"
+      icon="i-lucide-percent"
+      color="secondary"
+      variant="subtle"
+      :description="t('pool.secondRunOn')"
+    />
 
     <UAlert
       v-if="isAdmin && !state?.config.auctionChannelConfigured"

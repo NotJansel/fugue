@@ -155,16 +155,34 @@ export const setMappool = (
 
 export interface ConfigPatch {
   teamSize?: number | null
+  minTeamSize?: number | null
+  /** `null` leaves it as it was; pass `clearFieldSize` to let the whole field back in. */
+  fieldSize?: number | null
+  clearFieldSize?: boolean
   captainCountOverride?: number | null
   clearCaptainCountOverride?: boolean
   defaultStartingBid?: number | null
   defaultMaxBid?: number | null
+  minBidIncrement?: number | null
+  maxBidIncrement?: number | null
+  secondRun?: boolean | null
 }
 
 export function updateTournamentConfig(patch: ConfigPatch): Promise<TournamentState> {
   return update(current => ({
     ...current,
     teamSize: patch.teamSize != null ? Math.max(patch.teamSize, 1) : current.teamSize,
+    minTeamSize: patch.minTeamSize != null ? Math.max(patch.minTeamSize, 0) : current.minTeamSize,
+    fieldSize: patch.clearFieldSize
+      ? null
+      : patch.fieldSize != null ? Math.max(patch.fieldSize, 0) : current.fieldSize,
+    minBidIncrement: patch.minBidIncrement != null
+      ? Math.max(patch.minBidIncrement, 1)
+      : current.minBidIncrement,
+    maxBidIncrement: patch.maxBidIncrement != null
+      ? Math.max(patch.maxBidIncrement, 0)
+      : current.maxBidIncrement,
+    secondRun: patch.secondRun ?? current.secondRun,
     captainCountOverride: patch.clearCaptainCountOverride
       ? null
       : patch.captainCountOverride != null

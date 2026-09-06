@@ -50,6 +50,17 @@ field breaks existing deployments.
   → `NM1`/`NM1 Score`) unless the pool sheet names one. Bindings made by hand survive a re-import,
   matched by slot name. All rounds commonly share one sheet, so an import takes a round name and a
   row range and replaces **only that round**.
+- The auction's rules are configuration, not constants: `fieldSize` (only the top N take part),
+  `teamSize`/`minTeamSize` (largest and smallest legal team, captain included),
+  `minBidIncrement`/`maxBidIncrement` and `secondRun`. The neutral defaults - no field cut, no
+  reserve, no ceiling on a raise - leave a tournament that predates them behaving as it did.
+  `field()` in `tournament-model.ts` is what every derivation starts from, so a qualifier below the
+  cut keeps their seed and results but is out of the captain count, the pool and the auction.
+- Every rule a bid has to pass lives in `submitBid`, not in the route: team not yet full, inside the
+  min/max step (measured from the starting price for an opening bid, from the standing bid after
+  that), affordable, and still leaving `reserveFor()` - what the captain needs to fill their roster
+  to `minTeamSize` at the starting price. Affordability is checked before the reserve so a captain
+  who is simply out of gold is not sent looking for the wrong rule.
 - One auction exists system-wide, owned by `server/utils/auction.ts`. Both the slash command and the
   dashboard call into it, and it posts and edits the auction card itself. Everything that touches the
   auction goes through `withLock` — settling a purse and recording a sale both `await`, and a bid

@@ -130,8 +130,28 @@ export interface MappoolSheetConfig {
 export interface TournamentState {
   /** Players in seeding order: index 0 is seed 1. */
   players: TournamentPlayer[]
-  /** Players per team, captain included. Drives the captain count. */
+  /**
+   * How many of the seeded players take part at all - the top N of the qualifiers. Everyone below
+   * stays imported and keeps their seed, but is out of the captain count, the pool and the auction.
+   * `null` lets the whole field in.
+   */
+  fieldSize?: number | null
+  /** Largest team, captain included. Drives the captain count and closes a roster when reached. */
   teamSize: number
+  /**
+   * Smallest team a captain has to end up with, captain included. Nothing forces them to fill it,
+   * but it is what a captain must keep enough gold in reserve for on every bid.
+   */
+  minTeamSize: number
+  /** How much a bid has to raise the standing one by, at the least. */
+  minBidIncrement: number
+  /** And at the most - measured from the starting price for the opening bid. 0 means no ceiling. */
+  maxBidIncrement: number
+  /**
+   * Whether the pool is on its second time round, where whatever went unsold is offered again at
+   * half the starting price. The ceiling and the increments are unchanged by it.
+   */
+  secondRun: boolean
   /** Set to pin the captain count instead of deriving it from `teamSize`. */
   captainCountOverride?: number | null
   seedingLocked: boolean
@@ -218,6 +238,8 @@ export interface PlayerDto {
   ppRaw: number | null
   ppRank: number | null
   captainMode: CaptainMode
+  /** Whether this seed is inside the field that takes part - see `TournamentState.fieldSize`. */
+  inField: boolean
   isCaptain: boolean
   /** osu! ID of the captain who bought this player, if any. */
   soldTo: string | null
@@ -249,16 +271,29 @@ export interface TeamDto {
   spent: number
   members: TeamMemberDto[]
   slotsLeft: number
+  /** How far this roster still is from the smallest legal team. */
+  slotsToMinimum: number
+  /** Gold this captain has to keep back to still fill `slotsToMinimum` at the starting price. */
+  reserved: number
 }
 
 export interface ConfigDto {
   teamSize: number
+  minTeamSize: number
+  /** How many players take part, and how many were imported in total. */
+  fieldSize: number | null
+  fieldTotal: number
   /** Effective number of captains, whether derived or pinned. */
   captainCount: number
   /** Set when the count is pinned rather than derived from the team size. */
   captainCountOverride: number | null
   defaultStartingBid: number
   defaultMaxBid: number
+  minBidIncrement: number
+  maxBidIncrement: number
+  secondRun: boolean
+  /** What an auction started right now would open at - halved while `secondRun` is on. */
+  startingBid: number
   seedingLocked: boolean
   auctionChannelConfigured: boolean
   /**

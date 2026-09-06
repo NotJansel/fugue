@@ -2,8 +2,17 @@ import type { MapScore, TournamentPlayer, TournamentState, TournamentWarning } f
 
 export const DEFAULT_TEAM_SIZE = 4
 
+/**
+ * Defaults that leave an existing tournament behaving exactly as it did: no field cut, no reserve,
+ * no ceiling on a raise. Every rule below is something an organiser turns on deliberately.
+ */
 export const emptyTournament = (): TournamentState => ({
   players: [],
+  fieldSize: null,
+  minTeamSize: 0,
+  minBidIncrement: 1,
+  maxBidIncrement: 0,
+  secondRun: false,
   teamSize: DEFAULT_TEAM_SIZE,
   captainCountOverride: null,
   seedingLocked: false,
@@ -41,19 +50,33 @@ export function parseSheetNumber(input: string): number | null {
 }
 
 /**
+ * The players who take part: the top `fieldSize` of the seeding, or everyone when it is unset.
+ *
+ * Everything below is derived from this rather than from `players`, so a qualifier who missed the
+ * cut keeps their seed and their results but is out of the captain count, the pool and the auction.
+ */
+export function field(state: TournamentState): TournamentPlayer[] {
+  const size = state.fieldSize
+
+  return size == null || size <= 0 ? state.players : state.players.slice(0, size)
+}
+
+/**
  * How many captains this tournament should have.
  *
- * Derived as `qualified / teamSize` (floored) so that adding or removing qualifiers automatically
+ * Derived as `field / teamSize` (floored) so that adding or removing qualifiers automatically
  * changes the number of teams, unless `captainCountOverride` pins it.
  */
 export function captainCount(state: TournamentState): number {
+  const taking = field(state)
+
   if (state.captainCountOverride != null) {
-    return Math.min(Math.max(state.captainCountOverride, 0), state.players.length)
+    return Math.min(Math.max(state.captainCountOverride, 0), taking.length)
   }
 
   if (state.teamSize <= 0) return 0
 
-  return Math.floor(state.players.length / state.teamSize)
+  return Math.floor(taking.length / state.teamSize)
 }
 
 /**
@@ -62,20 +85,21 @@ export function captainCount(state: TournamentState): number {
  * "top seed, but not a captain" expressible.
  */
 export function captains(state: TournamentState): TournamentPlayer[] {
+  const taking = field(state)
   const target = captainCount(state)
-  const forced = state.players.filter(player => player.captainMode === 'FORCE')
+  const forced = taking.filter(player => player.captainMode === 'FORCE')
   const remaining = Math.max(target - forced.length, 0)
-  const auto = state.players.filter(player => player.captainMode === 'AUTO').slice(0, remaining)
+  const auto = taking.filter(player => player.captainMode === 'AUTO').slice(0, remaining)
   const chosen = new Set([...forced, ...auto].map(player => player.osuId))
 
-  return state.players.filter(player => chosen.has(player.osuId))
+  return taking.filter(player => chosen.has(player.osuId))
 }
 
 /** Players that are not captains - the pool the auction draws from. */
 export function pool(state: TournamentState): TournamentPlayer[] {
   const captainIds = new Set(captains(state).map(player => player.osuId))
 
-  return state.players.filter(player => !captainIds.has(player.osuId))
+  return field(state).filter(player => !captainIds.has(player.osuId))
 }
 
 /** osu! IDs of every player already bought by some captain. */
@@ -88,6 +112,26 @@ export function unsoldPool(state: TournamentState): TournamentPlayer[] {
   const sold = soldPlayerIds(state)
 
   return pool(state).filter(player => !sold.has(player.osuId))
+}
+
+/**
+ * What an auction started right now opens at.
+ *
+ * The second time round the pool, whatever went unsold is offered at half price - the ceiling and
+ * the increments stay where they were, only the entry gets cheaper.
+ */
+export const startingBid = (state: TournamentState): number =>
+  state.secondRun ? Math.round(state.defaultStartingBid / 2) : state.defaultStartingBid
+
+/**
+ * Gold a captain must still be able to spend after a bid, to fill their team to the smallest legal
+ * size at the starting price. Counting the player currently being bid on as already theirs.
+ */
+export function reserveFor(state: TournamentState, captainOsuId: string): number {
+  const bought = state.rosters[captainOsuId]?.length ?? 0
+  const stillNeeded = Math.max((state.minTeamSize - 1) - (bought + 1), 0)
+
+  return stillNeeded * startingBid(state)
 }
 
 /** Finds the captain a Discord user controls, if any. */
@@ -147,6 +191,8 @@ export function spareSheetColumns(state: TournamentState): string[] {
  * may well want an uneven bracket mid-setup.
  */
 export function warnings(state: TournamentState): TournamentWarning[] {
+  const taking = field(state)
+
   if (state.players.length === 0) {
     return [{
       code: 'warn.noPlayers',
@@ -160,7 +206,7 @@ export function warnings(state: TournamentState): TournamentWarning[] {
   const target = captainCount(state)
 
   if (state.teamSize > 0) {
-    const leftover = state.players.length - (target * state.teamSize)
+    const leftover = taking.length - (target * state.teamSize)
 
     if (leftover !== 0) {
       result.push({

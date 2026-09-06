@@ -5,6 +5,7 @@ import { config } from '../../utils/config'
 import { apiError } from '../../utils/http-error'
 import { fetchOsuUser, osuApiReady } from '../../utils/osu-api'
 import { requireAdmin } from '../../utils/session'
+import { pool, startingBid } from '../../utils/tournament-model'
 import { getTournament, replacePlayers } from '../../utils/tournament-store'
 
 interface Body {
@@ -57,6 +58,11 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
 
   if (index < 0) throw apiError(404, 'That player isn\'t in the tournament.', 'err.player.unknown')
 
+  // Captains and anyone below the field cut are not up for sale, whatever the request asks for.
+  if (!pool(tournament).some(player => player.osuId === body.osuId)) {
+    throw apiError(409, 'That player is not in the auction pool.', 'err.player.notInPool')
+  }
+
   const player = await resolveForAuction(tournament.players[index]!)
 
   const result = await startAuction(
@@ -68,7 +74,7 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
       ppRank: player.ppRank ?? 0,
       seed: index + 1
     },
-    body.startingBid ?? tournament.defaultStartingBid,
+    body.startingBid ?? startingBid(tournament),
     body.maxBid ?? tournament.defaultMaxBid
   )
 

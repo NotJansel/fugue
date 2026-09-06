@@ -2,8 +2,9 @@ import { Routes } from 'discord.js'
 import type { AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
-import { getAllBalances, release, reserve, settleHold } from './purse-store'
-import { recordSale } from './tournament-store'
+import { getAllBalances, getBalance, release, reserve, settleHold } from './purse-store'
+import { captainForDiscordId, reserveFor } from './tournament-model'
+import { getTournament, recordSale } from './tournament-store'
 
 /** The player being auctioned, as supplied by whoever started the auction. */
 export interface AuctionSubject {
@@ -28,6 +29,16 @@ export type BidResult
     | 'BELOW_STARTING'
     | 'NOT_HIGHER'
     | 'INSUFFICIENT_FUNDS'
+    /** The Discord account behind the bid does not own a captain. */
+    | 'NOT_CAPTAIN'
+    /** The bidder's roster is already at the largest legal team. */
+    | 'TEAM_FULL'
+    /** A raise has to clear the standing bid by the tournament's minimum step. */
+    | 'BELOW_MIN_STEP'
+    /** And may not clear it by more than the maximum step. */
+    | 'ABOVE_MAX_STEP'
+    /** Winning would leave too little to fill the roster to the smallest legal team. */
+    | 'BREAKS_RESERVE'
 
 const BID_TIMEOUT_MS = 15_000
 
@@ -242,9 +253,38 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
     const auction = current
     if (!auction) return 'NO_AUCTION'
     if (auction.highestBidder === bidderId) return 'ALREADY_HIGHEST'
+
+    const tournament = getTournament()
+    const captain = captainForDiscordId(tournament, bidderId)
+    if (!captain) return 'NOT_CAPTAIN'
+
+    // A roster at the largest legal team is closed - there is nowhere to put another player.
+    const bought = tournament.rosters[captain.osuId]?.length ?? 0
+    if (bought >= Math.max(tournament.teamSize - 1, 0)) return 'TEAM_FULL'
+
     if (amount > auction.maxBid) return 'ABOVE_MAX'
     if (auction.highestBidder == null && amount < auction.startingBid) return 'BELOW_STARTING'
-    if (amount <= auction.highestBid) return 'NOT_HIGHER'
+    if (auction.highestBidder != null && amount <= auction.highestBid) return 'NOT_HIGHER'
+
+    // Opening bids are measured against the starting price, later ones against the standing bid, so
+    // the ceiling on a raise applies from the very first offer rather than only once someone leads.
+    const standing = auction.highestBidder == null ? auction.startingBid : auction.highestBid
+
+    if (auction.highestBidder != null && amount - standing < Math.max(tournament.minBidIncrement, 1)) {
+      return 'BELOW_MIN_STEP'
+    }
+
+    if (tournament.maxBidIncrement > 0 && amount - standing > tournament.maxBidIncrement) {
+      return 'ABOVE_MAX_STEP'
+    }
+
+    // Plain affordability first: a captain who cannot cover the bid at all is not being held back by
+    // the reserve, and saying so would send them looking for a rule that isn't the problem.
+    if (getBalance(bidderId) < amount) return 'INSUFFICIENT_FUNDS'
+
+    // Winning must still leave enough to fill the roster to the smallest legal team.
+    if (getBalance(bidderId) - amount < reserveFor(tournament, captain.osuId)) return 'BREAKS_RESERVE'
+
     if (!reserve(bidderId, amount)) return 'INSUFFICIENT_FUNDS'
 
     // The previous leader has been outbid - give them their funds back.

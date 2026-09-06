@@ -20,6 +20,15 @@ const docIdPattern = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/
 const gidPattern = /[#&?]gid=(\d+)/
 const bareIdPattern = /^[a-zA-Z0-9-_]{20,}$/
 
+/**
+ * A "publish to web" link: `/spreadsheets/d/e/<token>/pub…`.
+ *
+ * The token is not the document ID and there is no `/export` under it, so these have to be spotted
+ * before [docIdPattern] gets a look - that one would happily read the literal `e` as the document and
+ * build a URL Google answers with a 404, under an error message blaming the sheet's sharing.
+ */
+const publishedPattern = /\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/
+
 const osuIdAliases = ['osu id', 'osuid', 'osu! id', 'user id', 'userid', 'player id', 'uid']
 const usernameAliases = ['username', 'osu username', 'player', 'player name', 'name', 'ign', 'nick']
 const discordAliases = ['discord id', 'discordid', 'discord', 'discord tag', 'discord user']
@@ -76,8 +85,26 @@ export function toCsvUrl(input: string, sheetName?: string | null): string | nul
   const trimmed = input.trim()
   if (trimmed === '') return null
 
-  if (trimmed.startsWith('http') && (trimmed.includes('out:csv') || trimmed.includes('format=csv'))) {
+  // Already a CSV endpoint, in any of the three spellings Google uses for one.
+  if (trimmed.startsWith('http')
+    && (trimmed.includes('out:csv') || trimmed.includes('format=csv') || trimmed.includes('output=csv'))) {
     return trimmed
+  }
+
+  // A published sheet lives in its own URL space and is read through `pub`, never `export`. A tab
+  // name cannot be honoured here - `gviz` does not exist for published documents - so the gid in the
+  // link is the only way to pick a sheet, and `single=true` is what stops Google returning them all.
+  const publishedToken = publishedPattern.exec(trimmed)?.[1]
+
+  if (publishedToken != null) {
+    if (sheetName?.trim()) {
+      console.warn('[sheets] A published-to-web link cannot select a tab by name - using the gid in the link')
+    }
+
+    const base = `https://docs.google.com/spreadsheets/d/e/${publishedToken}/pub`
+    const publishedGid = gidPattern.exec(trimmed)?.[1]
+
+    return publishedGid ? `${base}?gid=${publishedGid}&single=true&output=csv` : `${base}?output=csv`
   }
 
   const docId = docIdPattern.exec(trimmed)?.[1] ?? (bareIdPattern.test(trimmed) ? trimmed : null)
@@ -119,6 +146,8 @@ export async function fetchSheet(input: string, sheetName?: string | null): Prom
   }
 
   if (!response.ok) {
+    console.warn(`[sheets] ${url} returned HTTP ${response.status}`)
+
     throw apiError(
       502,
       `Google Sheets returned HTTP ${response.status}. `
@@ -132,6 +161,8 @@ export async function fetchSheet(input: string, sheetName?: string | null): Prom
 
   // A private sheet redirects to a sign-in page, which comes back as HTML rather than CSV.
   if (body.trimStart().startsWith('<')) {
+    console.warn(`[sheets] ${url} answered with a web page instead of CSV`)
+
     throw apiError(
       400,
       'Got a web page instead of CSV - the sheet is most likely not shared publicly, or the tab name is wrong.',

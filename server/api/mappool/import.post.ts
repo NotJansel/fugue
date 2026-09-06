@@ -56,7 +56,12 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     return {
       ...map,
       id: existing?.id ?? '',
-      column: map.column ?? existing?.column ?? bound.get(map.label) ?? null
+      // The sheet's own naming first, then what the binder made of the whole round, and only then
+      // what was already on file. The binder has to outrank the stored column: a slot bound wrongly
+      // by an older, worse binder would otherwise keep that binding through every re-import, which
+      // is the one thing a re-import is for. A hand-picked column still survives, because the binder
+      // returns nothing for exactly the ambiguous slots that needed picking by hand.
+      column: map.column ?? bound.get(map.label) ?? existing?.column ?? null
     }
   })
 

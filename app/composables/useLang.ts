@@ -141,7 +141,7 @@ const en = {
   'mappool.results': 'Qualifier results',
   'mappool.noResults': 'No slot is bound to a score column yet.',
   'mappool.length': 'Length',
-  'mappool.total': 'Total',
+  'mappool.average': 'Average',
 
   'sheet.url': 'Sheet URL or document ID',
   'sheet.tab': 'Tab name',
@@ -379,7 +379,7 @@ const de: Record<keyof typeof en, string> = {
   'mappool.results': 'Qualifier-Ergebnisse',
   'mappool.noResults': 'Noch ist kein Slot an eine Punktespalte gebunden.',
   'mappool.length': 'Länge',
-  'mappool.total': 'Gesamt',
+  'mappool.average': 'Durchschnitt',
 
   'sheet.url': 'Tabellen-URL oder Dokument-ID',
   'sheet.tab': 'Tabellenblatt',

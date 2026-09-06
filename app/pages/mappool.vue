@@ -114,7 +114,11 @@ const results = computed(() => {
     .map(player => ({
       player,
       cells: scored.value.map(map => player.mapScores[map.id] ?? null),
-      total: scored.value.reduce((sum, map) => sum + (player.mapScores[map.id]?.value ?? 0), 0)
+      // The average across the pool, not the sum - a map a player skipped counts as a zero either
+      // way, so this is the sheet's own "Avg. Score" and stays comparable when a round has more maps
+      // than the last one did.
+      average: scored.value.reduce((sum, map) => sum + (player.mapScores[map.id]?.value ?? 0), 0)
+        / scored.value.length
     }))
     // By seed, so the table reads in the same order as the seeding page and a row can be found by
     // the number an organiser already has in their head. `players` arrives in that order anyway -
@@ -270,7 +274,7 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
                 {{ map.label }}
               </th>
               <th class="py-2 ps-3 font-medium text-right">
-                {{ t('mappool.total') }}
+                {{ t('mappool.average') }}
               </th>
             </tr>
           </thead>
@@ -304,7 +308,7 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
                 >&mdash;</span>
               </td>
               <td class="py-1.5 ps-3 text-right font-display tnum">
-                {{ number(row.total, 2) }}
+                {{ number(row.average, 2) }}
               </td>
             </tr>
           </tbody>

@@ -1,7 +1,7 @@
 import { defineEventHandler, readBody } from 'h3'
 import type { ApiOk, MappoolColumnMapping } from '#shared/types'
 import { apiError } from '../../utils/http-error'
-import { columnForSlot, saveMappool, slotKey } from '../../utils/mappool'
+import { bindScoreColumns, saveMappool, slotKey } from '../../utils/mappool'
 import { requireAdmin } from '../../utils/session'
 import { fetchSheet, toMaps } from '../../utils/sheets'
 import { spareSheetColumns } from '../../utils/tournament-model'
@@ -46,7 +46,9 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
   const byLabel = new Map(
     current.mappool.filter(map => map.stage === stage).map(map => [slotKey(map.label), map])
   )
-  const columns = spareSheetColumns(current)
+  // Resolved for the whole round at once - which column belongs to a slot often only becomes clear
+  // from what the other slots resolved to. See `bindScoreColumns`.
+  const bound = bindScoreColumns(parsed.map(map => map.label), spareSheetColumns(current))
 
   const merged = parsed.map((map) => {
     const existing = byLabel.get(slotKey(map.label))
@@ -54,7 +56,7 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     return {
       ...map,
       id: existing?.id ?? '',
-      column: map.column ?? existing?.column ?? columnForSlot(columns, map.label)
+      column: map.column ?? existing?.column ?? bound.get(map.label) ?? null
     }
   })
 

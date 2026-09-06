@@ -133,12 +133,73 @@ export async function saveMappool(
 /** Slot names are compared loosely, so "NM1", "nm 1" and "NM_1" are the same slot. */
 export const slotKey = (label: string): string => label.toLowerCase().replace(/[^a-z0-9]/g, '')
 
-/** The qualifier column that plainly belongs to a slot: "NM1", "NM1 score", "nm1_score". */
-export function columnForSlot(columns: string[], label: string): string | null {
-  const slot = slotKey(label)
-  if (slot === '') return null
+/** Words that mark a column as holding a *score*, in the languages these sheets are written in. */
+const SCORE_WORDS = ['score', 'punkte', 'punktzahl', 'points']
 
-  return columns.find(column => slotKey(column) === slot)
-    ?? columns.find(column => slotKey(column).startsWith(slot))
-    ?? null
+/** And the ones that mark it as holding a placing, which is the same shape of number and not a score. */
+const RANK_WORDS = ['rank', 'rang', 'platz', 'place', 'position']
+
+/** A header split into comparable words, so "Per-map score NM1" can be asked whether it names NM1. */
+const wordsIn = (header: string): string[] =>
+  header.toLowerCase().split(/[^a-z0-9]+/).filter(word => word !== '')
+
+const mentions = (header: string, words: string[]): boolean =>
+  wordsIn(header).some(word => words.includes(word))
+
+/**
+ * Which qualifier column holds each slot's scores.
+ *
+ * Resolved for the whole pool at once rather than slot by slot, because the answer for one slot is
+ * often the only thing that disambiguates the next. Qualifier sheets routinely carry *two* blocks of
+ * per-map columns - one of ranks, one of scores - and Google only puts the block's name on its first
+ * column, so from column ten onwards the two are indistinguishable by name alone:
+ *
+ *     Per-map rank NM1 | NM2 | NM3 | … | Per-map score NM1 | NM2 | NM3 | …
+ *
+ * So: a column naming a rank is never bound, a column naming a score wins outright, and the score
+ * column that *is* named anchors the block - every later ambiguous slot then prefers the candidate
+ * sitting after that anchor. A slot still left with more than one plausible column is bound to none
+ * of them, because guessing wrong here silently inverts the whole results table, while an unbound
+ * slot is visible on the mappool page and fixed with one click.
+ */
+export function bindScoreColumns(labels: string[], columns: string[]): Map<string, string | null> {
+  // Candidates first: a column belongs to a slot when it names that slot as a whole word, so "NM1"
+  // matches "Per-map score NM1" but never "NM10".
+  const candidatesFor = (label: string): number[] => {
+    const slot = slotKey(label)
+    if (slot === '') return []
+
+    return columns
+      .map((column, index) => ({ column, index }))
+      .filter(({ column }) =>
+        !mentions(column, RANK_WORDS)
+        && (slotKey(column) === slot || wordsIn(column).includes(slot)))
+      .map(({ index }) => index)
+  }
+
+  const candidates = new Map(labels.map(label => [label, candidatesFor(label)]))
+  const bound = new Map<string, string | null>()
+
+  // Pass one: the unambiguous slots, which is also what finds the anchor.
+  let anchor = -1
+
+  for (const [label, found] of candidates) {
+    const named = found.filter(index => mentions(columns[index]!, SCORE_WORDS))
+    const chosen = named.length === 1 ? named[0] : found.length === 1 ? found[0] : undefined
+
+    if (chosen == null) continue
+
+    bound.set(label, columns[chosen]!)
+    if (named.length === 1 && anchor < 0) anchor = chosen
+  }
+
+  // Pass two: the rest, resolved against the block the anchor opened.
+  for (const [label, found] of candidates) {
+    if (bound.has(label)) continue
+
+    const afterAnchor = anchor < 0 ? [] : found.filter(index => index > anchor)
+    bound.set(label, afterAnchor.length === 1 ? columns[afterAnchor[0]!]! : null)
+  }
+
+  return bound
 }

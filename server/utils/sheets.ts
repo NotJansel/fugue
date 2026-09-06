@@ -38,6 +38,39 @@ const slotAliases = ['slot', 'pick', 'map slot', 'mod', 'code', 'map', 'beatmap'
 const beatmapAliases = ['beatmap id', 'beatmapid', 'map id', 'mapid', 'b id', 'link', 'url', 'beatmap', 'map link']
 const scoreColumnAliases = ['score column', 'column', 'header', 'qualifier column', 'score header']
 
+/** What [dedupeHeaders] invents for a blank header. A made-up name can never match a real alias. */
+const syntheticPattern = /^Column \d+( \(\d+\))?$/
+
+/** A pool slot as sheets write them: "NM1", "HD2", "TB", "FM3". */
+const slotLikePattern = /^(nm|hd|hr|dt|fm|ez|fl|rx|tb)\d*$/
+
+/** A beatmap cell: a bare difficulty id. Four digits and up, which is what keeps BPM out of it. */
+const beatmapLikePattern = /^\d{4,9}$/
+
+const normalise = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** How much of a column looks like the thing being asked about, ignoring its empty cells. */
+function shareOf(rows: Record<string, string>[], header: string, test: (value: string) => boolean): number {
+  const values = rows.map(row => row[header]?.trim()).filter((value): value is string => Boolean(value))
+  if (values.length === 0) return 0
+
+  return values.filter(test).length / values.length
+}
+
+/** The column that looks most like `test`, as long as it looks like it convincingly enough. */
+function columnLooking(
+  headers: string[],
+  rows: Record<string, string>[],
+  test: (value: string) => boolean
+): string | null {
+  const scored = headers
+    .map(header => ({ header, share: shareOf(rows, header, test) }))
+    .filter(({ share }) => share >= 0.6)
+    .sort((a, b) => b.share - a.share)
+
+  return scored[0]?.header ?? null
+}
+
 // High enough that a multi-round mappool sheet (quals through finals, stacked) previews in full, so
 // picking a round's row range does not need a second, blinder round-trip.
 const PREVIEW_ROWS = 500
@@ -46,7 +79,9 @@ const ENRICH_DELAY_MS = 120
 const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))
 
 function matchAlias(headers: string[], aliases: string[]): string | null {
-  const normalised = new Map(headers.map(header => [header.toLowerCase().trim(), header]))
+  const normalised = new Map(
+    headers.filter(header => !syntheticPattern.test(header)).map(header => [header.toLowerCase().trim(), header])
+  )
 
   for (const alias of aliases) {
     const exact = normalised.get(alias)
@@ -195,18 +230,34 @@ export function suggestMapping(headers: string[]): ColumnMapping | null {
   }
 }
 
-/** Best-effort guess at which column names the slot, the beatmap and the qualifier score column. */
-export function suggestMappoolMapping(headers: string[]): MappoolColumnMapping | null {
-  const label = matchAlias(headers, slotAliases)
+/**
+ * Best-effort guess at which column names the slot, the beatmap and the qualifier score column.
+ *
+ * The *values* decide the first two, not the header. A pool sheet's slot column is unmistakable from
+ * its contents - NM1, HD2, TB - while its header is routinely blank or something like "Map" that
+ * belongs to the title column two along, so going by names picks the wrong one on exactly the sheets
+ * this has to work for. The header aliases stay as the fallback.
+ */
+export function suggestMappoolMapping(
+  headers: string[],
+  rows: Record<string, string>[] = []
+): MappoolColumnMapping | null {
+  const label = columnLooking(headers, rows, value => slotLikePattern.test(normalise(value)))
+    ?? matchAlias(headers, slotAliases)
+
   if (label == null) return null
 
   // "Map" and "Beatmap" are plausible names for either column, so whichever one names the slot is
   // off the table for the rest - one column cannot be both.
   const rest = headers.filter(header => header !== label)
 
+  const beatmapId = columnLooking(rest, rows, value =>
+    beatmapLikePattern.test(value.trim()) || value.includes('osu.ppy.sh')
+  ) ?? matchAlias(rest, beatmapAliases)
+
   return {
     label,
-    beatmapId: matchAlias(rest, beatmapAliases),
+    beatmapId,
     scoreColumn: matchAlias(rest, scoreColumnAliases)
   }
 }
@@ -219,7 +270,9 @@ export async function previewSheet(input: string, sheetName?: string | null): Pr
     sampleRows: data.rows.slice(0, PREVIEW_ROWS),
     rowCount: data.rows.length,
     suggestedMapping: suggestMapping(data.headers),
-    suggestedMappoolMapping: suggestMappoolMapping(data.headers)
+    // The whole sheet, not just the preview slice: the slot and beatmap columns are recognised by
+    // what is *in* them, and a pool sheet's first rows are as often a heading as they are data.
+    suggestedMappoolMapping: suggestMappoolMapping(data.headers, data.rows)
   }
 }
 

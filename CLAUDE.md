@@ -41,9 +41,9 @@ field breaks existing deployments.
   and that zero is read back as "unknown".
 - The star rating is the **only** thing the API adjusts — CS/AR/OD/HP/BPM/length come back raw
   whatever `mods` is asked for, so `difficulty.ts` (`withMods`) adjusts them on the way in. HR/EZ
-  scale the *settings*; DT/HT change the *clock*, which is why AR and OD legitimately read above 10
-  and CS and HP don't move at all. Note the HR/EZ cap on AR/OD/HP is 11, carried over from the Kotlin
-  as-is; the game itself caps at 10.
+  scale the *settings* and cap at 10, the way the game does; DT/HT change the *clock*, which is why
+  AR and OD still legitimately read above 10 after a cap and why CS and HP don't move at all. The two
+  apply in that order, so HRDT caps AR at 10 first and the rate then carries it to 11.
 - The mappool has **its own sheet**, separate from the qualifier results, previewed through the
   shared `/api/sheet/preview`. It supplies slot names and beatmap IDs only — scores still come from
   the qualifier sheet, so on import each slot is bound to the qualifier column named after it (`NM1`

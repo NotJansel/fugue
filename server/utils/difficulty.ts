@@ -22,7 +22,8 @@ export interface BeatmapDifficulty {
 const HR_SCALE = 1.4
 const HR_CS_SCALE = 1.3
 const EZ_SCALE = 0.5
-const MAX_SETTING = 11
+/** The game caps every setting HR raises at 10 - AR 8 under HR is AR 10, not AR 11.2. */
+const MAX_SETTING = 10
 const NO_RATE_CHANGE = 1
 
 /** AR is a curve with a knee at 5: a flatter millisecond-per-point slope below it, steeper above. */
@@ -60,10 +61,7 @@ const scale = (value: number | null | undefined, factor: number, cap: number): n
  * The two halves work differently, which is the whole subtlety here:
  *
  * HR and EZ scale the *settings*. HR multiplies CS by 1.3 and AR, OD and HP by 1.4; EZ halves all
- * four. CS is capped at 10 and the other three at `MAX_SETTING`, carried over from the Kotlin version
- * as-is. Note that the game itself caps all four at 10, so an AR 8 map under HR reads 11.2 here where
- * osu! would say 10 - kept rather than corrected so a converted deployment rates its pool exactly as
- * it did before.
+ * four. All four cap at 10, the way the game caps them - AR 8 under HR is AR 10, not AR 11.2.
  *
  * DT and HT touch none of the four. They change how much *time* the player gets, so AR and OD are
  * converted into the millisecond windows they actually stand for, scaled by the rate, and read back
@@ -79,7 +77,7 @@ export function withMods(difficulty: BeatmapDifficulty, mods: number): BeatmapDi
   if ((mods & Mods.HR) !== 0) {
     scaled = {
       ...difficulty,
-      cs: scale(difficulty.cs, HR_CS_SCALE, 10),
+      cs: scale(difficulty.cs, HR_CS_SCALE, MAX_SETTING),
       ar: scale(difficulty.ar, HR_SCALE, MAX_SETTING),
       od: scale(difficulty.od, HR_SCALE, MAX_SETTING),
       hp: scale(difficulty.hp, HR_SCALE, MAX_SETTING)
@@ -87,7 +85,7 @@ export function withMods(difficulty: BeatmapDifficulty, mods: number): BeatmapDi
   } else if ((mods & Mods.EZ) !== 0) {
     scaled = {
       ...difficulty,
-      cs: scale(difficulty.cs, EZ_SCALE, 10),
+      cs: scale(difficulty.cs, EZ_SCALE, MAX_SETTING),
       ar: scale(difficulty.ar, EZ_SCALE, MAX_SETTING),
       od: scale(difficulty.od, EZ_SCALE, MAX_SETTING),
       hp: scale(difficulty.hp, EZ_SCALE, MAX_SETTING)

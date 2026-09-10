@@ -269,7 +269,14 @@ const en = {
   'err.bid.notHigher': 'Someone already bid that much - go higher.',
   'err.bid.funds': 'Your purse does not cover that bid.',
   'err.bid.notANumber': 'That is not a bid.',
-  'err.internal': 'Something went wrong: {message}'
+  'err.internal': 'Something went wrong: {message}',
+
+  'errorPage.notFound.title': 'Page not found',
+  'errorPage.notFound.body': 'That link does not lead anywhere in the auction house.',
+  'errorPage.server.title': 'Something went wrong',
+  'errorPage.server.body': 'The dashboard hit an error it could not recover from. A second try often helps - if it does not, the rest is in the server log.',
+  'errorPage.home': 'Back to the auction',
+  'errorPage.retry': 'Try again'
 }
 
 const de: Record<keyof typeof en, string> = {
@@ -529,7 +536,14 @@ const de: Record<keyof typeof en, string> = {
   'err.bid.notHigher': 'So viel wurde schon geboten - geh höher.',
   'err.bid.funds': 'Dein Geldbeutel deckt dieses Gebot nicht.',
   'err.bid.notANumber': 'Das ist kein Gebot.',
-  'err.internal': 'Etwas ist schiefgelaufen: {message}'
+  'err.internal': 'Etwas ist schiefgelaufen: {message}',
+
+  'errorPage.notFound.title': 'Seite nicht gefunden',
+  'errorPage.notFound.body': 'Dieser Link führt im Auktionshaus nirgendwohin.',
+  'errorPage.server.title': 'Etwas ist schiefgelaufen',
+  'errorPage.server.body': 'Das Dashboard ist auf einen Fehler gestoßen, von dem es sich nicht erholen konnte. Ein zweiter Versuch hilft oft - wenn nicht, steht der Rest im Server-Log.',
+  'errorPage.home': 'Zurück zur Auktion',
+  'errorPage.retry': 'Erneut versuchen'
 }
 
 const dictionaries: Record<Lang, Record<string, string>> = { en, de }

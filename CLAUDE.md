@@ -98,5 +98,16 @@ field breaks existing deployments.
 - The interface is **dark only** (`colorMode.preference: 'dark'`). The palette — oxblood `ember`, old
   gold `gold`, umber neutrals — is defined in `app/assets/css/main.css` and wired up in
   `app/app.config.ts`. A light variant would be a different design, not a toggle.
+- Two typefaces, both declared in `app/assets/css/main.css`. `--font-sans` is a system stack and
+  stays one. `--font-display` — every heading, price, seed and countdown — is **Source Serif 4,
+  self-hosted**: the latin-subset `woff2` files are checked into `public/fonts` (licence beside
+  them) rather than fetched by `@nuxt/fonts` at build time, so an image build needs no network
+  beyond the registry and the URL is stable enough for `server/utils/notice.ts` to name it. That
+  module gets no build assets, so its palette *and* its two font stacks are hand-copied and have to
+  be changed in step with `main.css`. The subset keeps its `tnum` feature, which is what makes the
+  `.tnum` class line money up in a column.
+- `app/error.vue` is the 404 and the crash screen. Without it Nuxt serves its own built-in pages,
+  which are Nuxt-branded and carry font stacks belonging to nothing else here. It reads no dashboard
+  state on purpose — failing to load that state is one of the ways people arrive there.
 - `USelect` refuses an empty string as an option value, so options meaning "no column" or "all
   rounds" use the sentinels in `app/utils/select.ts` and convert back to `null` on the way out.

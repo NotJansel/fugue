@@ -2,6 +2,33 @@
 @import "@nuxt/ui";
 
 /**
+ * The display serif, served from this origin.
+ *
+ * The stack used to be system serifs only - Iowan Old Style on macOS, Palatino Linotype on Windows,
+ * whatever `ui-serif` maps to everywhere else - so every heading, price and countdown was a
+ * different typeface depending on who was looking. The files are checked in rather than fetched at
+ * build time so an image build needs no network beyond the registry, and `server/utils/notice.ts`
+ * can point at the same URL for the pages it renders on its own.
+ *
+ * Latin subset only: the dashboard is English and German. Licence in `public/fonts/OFL.txt`.
+ */
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/source-serif-4-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/source-serif-4-latin-600.woff2") format("woff2");
+}
+
+/**
  * The auction house palette: oxblood red, dark umber brown, and gold.
  *
  * Red carries every action, gold every highlight worth looking at twice - a live auction, a leading
@@ -10,7 +37,7 @@
  */
 @theme static {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, ui-serif, serif;
+  --font-display: "Source Serif 4", Georgia, ui-serif, serif;
 
   /* Primary - oxblood, warm rather than fire-engine. */
   --color-ember-50: #FCF4F2;

@@ -19,7 +19,10 @@ interface NoticeLink {
  * failed osu! link.
  *
  * It carries its own styling on purpose: the dashboard's assets sit behind the very check that sent
- * the user here, so this cannot link to them. The palette is the dashboard's, hand-written.
+ * the user here, so this cannot link to them. The palette is the dashboard's, hand-written - and so
+ * are the two font stacks, which have to stay in step with `--font-sans` and `--font-display` in
+ * `app/assets/css/main.css` by hand. The display serif itself is a static file under `public/`, so
+ * this page can load it directly instead of guessing at a hashed build asset.
  */
 export function renderNotice(
   event: H3Event,
@@ -39,12 +42,20 @@ export function renderNotice(
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(options.title)}</title>
   <style>
+    @font-face {
+      font-family: "Source Serif 4";
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url("/fonts/source-serif-4-latin-400.woff2") format("woff2");
+    }
     :root { color-scheme: dark; }
     body {
       margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem;
       background: radial-gradient(120% 120% at 50% 0%, #2a1512 0%, #150c0b 55%, #0d0807 100%);
       color: #f4e7de;
-      font: 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font: 15px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+        "Helvetica Neue", sans-serif;
     }
     .box {
       max-width: 32rem; padding: 2rem; border: 1px solid #4a2b21; border-radius: 14px;
@@ -55,7 +66,10 @@ export function renderNotice(
       background: linear-gradient(140deg, #c9a227, #a3241f); color: #1a0f0c; font-weight: 700;
       margin-bottom: 1rem;
     }
-    h1 { margin: 0 0 0.5rem; font-size: 1.15rem; letter-spacing: -0.01em; }
+    h1 {
+      margin: 0 0 0.5rem; font-size: 1.3rem; letter-spacing: -0.015em; font-weight: 400;
+      font-family: "Source Serif 4", Georgia, ui-serif, serif;
+    }
     p { margin: 0 0 1.5rem; color: #c2a496; }
     a {
       display: inline-block; margin-right: 0.75rem; padding: 0.45rem 0.9rem; border-radius: 8px;

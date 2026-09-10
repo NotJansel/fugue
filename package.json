@@ -12,16 +12,16 @@
     "start": "node --env-file-if-exists=.env .output/server/index.mjs"
   },
   "dependencies": {
-    "@iconify-json/lucide": "^1.2.127",
-    "@iconify-json/simple-icons": "^1.2.94",
-    "@nuxt/ui": "^4.11.0",
+    "@iconify-json/lucide": "^1.2.130",
+    "@iconify-json/simple-icons": "^1.2.95",
+    "@nuxt/ui": "^4.11.1",
     "discord.js": "^14.27.0",
     "nuxt": "^4.5.2",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.3.11"
   },

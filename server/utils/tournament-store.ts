@@ -5,6 +5,8 @@ import type {
   MappoolColumnMapping,
   MappoolSheetConfig,
   QualifierMap,
+  RegistrationColumnMapping,
+  RegistrationSheetConfig,
   SheetImportConfig,
   TeamMember,
   TournamentPlayer,
@@ -49,6 +51,7 @@ interface PlayerRow {
   osu_id: string
   username: string
   discord_id: string | null
+  discord_username: string | null
   qual_score: number | null
   sheet_seed: number | null
   pp_raw: number | null
@@ -88,7 +91,7 @@ interface SheetRow {
   kind: string
   url: string
   sheet_name: string | null
-  mapping: ColumnMapping & MappoolColumnMapping
+  mapping: ColumnMapping & MappoolColumnMapping & RegistrationColumnMapping
   imported_at: number | null
   stage: string | null
 }
@@ -111,6 +114,7 @@ export async function loadTournament(): Promise<void> {
 
   const qualifier = sheetRows.find(row => row.kind === 'qualifier')
   const mappoolSheet = sheetRows.find(row => row.kind === 'mappool')
+  const registrationSheet = sheetRows.find(row => row.kind === 'registration')
 
   // A database that has never been written to leaves the defaults in place rather than erroring, the
   // same way a missing file used to.
@@ -133,7 +137,8 @@ export async function loadTournament(): Promise<void> {
     teamNames: Object.fromEntries(teamNameRows.map(name => [name.captain_osu_id, name.name])),
     mappool: mappoolRows.map(readMap),
     sheet: qualifier ? readSheet(qualifier) : null,
-    mappoolSheet: mappoolSheet ? readMappoolSheet(mappoolSheet) : null
+    mappoolSheet: mappoolSheet ? readMappoolSheet(mappoolSheet) : null,
+    registrationSheet: registrationSheet ? readSheet(registrationSheet) : null
   }
 }
 
@@ -141,6 +146,7 @@ const readPlayer = (row: PlayerRow): TournamentPlayer => ({
   osuId: row.osu_id,
   username: row.username,
   discordId: row.discord_id,
+  discordUsername: row.discord_username,
   qualScore: row.qual_score,
   sheetSeed: row.sheet_seed,
   ppRaw: row.pp_raw,
@@ -170,7 +176,8 @@ const readMap = (row: MappoolRow): QualifierMap => ({
   lengthSeconds: row.length_seconds
 })
 
-const readSheet = (row: SheetRow): SheetImportConfig => ({
+/** The qualifier and the registration sheet have the same shape; only their mappings differ. */
+const readSheet = (row: SheetRow): SheetImportConfig & RegistrationSheetConfig => ({
   url: row.url,
   sheetName: row.sheet_name,
   mapping: row.mapping,
@@ -219,15 +226,15 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   await client.query('DELETE FROM players')
 
   const players = valuesList(next.players, (player: TournamentPlayer, seed) => [
-    player.osuId, seed, player.username, player.discordId ?? null,
+    player.osuId, seed, player.username, player.discordId ?? null, player.discordUsername ?? null,
     player.qualScore ?? null, player.sheetSeed ?? null, player.ppRaw ?? null, player.ppRank ?? null,
     player.captainMode, player.description ?? null, JSON.stringify(player.extra ?? {})
   ])
   if (players) {
     await client.query(
       `INSERT INTO players (
-         osu_id, seed, username, discord_id, qual_score, sheet_seed, pp_raw, pp_rank, captain_mode,
-         description, extra
+         osu_id, seed, username, discord_id, discord_username, qual_score, sheet_seed, pp_raw, pp_rank,
+         captain_mode, description, extra
        ) VALUES ${players.text}`,
       players.values
     )
@@ -270,13 +277,14 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
 
   await persistSheet(client, 'qualifier', next.sheet)
   await persistSheet(client, 'mappool', next.mappoolSheet)
+  await persistSheet(client, 'registration', next.registrationSheet)
 }
 
-/** Either sheet, stored as one row per kind. A cleared sheet is a deleted row, not an empty one. */
+/** Any of the sheets, stored as one row per kind. A cleared sheet is a deleted row, not an empty one. */
 async function persistSheet(
   client: PoolClient,
-  kind: 'qualifier' | 'mappool',
-  sheet: SheetImportConfig | MappoolSheetConfig | null | undefined
+  kind: 'qualifier' | 'mappool' | 'registration',
+  sheet: SheetImportConfig | MappoolSheetConfig | RegistrationSheetConfig | null | undefined
 ): Promise<void> {
   if (!sheet) {
     await client.query('DELETE FROM sheet_config WHERE kind = $1', [kind])
@@ -366,6 +374,7 @@ export function replacePlayers(
       return {
         ...imported,
         discordId: imported.discordId ?? existing.discordId,
+        discordUsername: imported.discordUsername ?? existing.discordUsername,
         captainMode: imported.captainMode === 'AUTO' ? existing.captainMode : imported.captainMode,
         description: imported.description === undefined ? existing.description : imported.description
       }
@@ -399,8 +408,11 @@ export interface RegistrationResult {
  *
  * A registration sheet knows who signed up and what they wrote about themselves, not how anyone did
  * in qualifiers. So a player already on file keeps their seed, results, captain override and anything
- * bought, and only has their name, Discord ID, pp and description brought up to date; anyone new joins
- * at the bottom of the seeding, in sheet order. Nobody is removed - missing from a registration export
+ * bought, and only has their name, Discord username, pp and description brought up to date; anyone new
+ * joins at the bottom of the seeding, in sheet order.
+ *
+ * A Discord ID is only ever filled in, never replaced: the one on file may be a verified link from the
+ * player signing in, and a username the sheet got wrong must not take that away. Nobody is removed - missing from a registration export
  * is not the same as withdrawn.
  *
  * A player on file under a `name:` placeholder takes the real osu! ID once the sheet or enrichment
@@ -408,7 +420,7 @@ export interface RegistrationResult {
  */
 export async function mergeRegistrations(
   registered: TournamentPlayer[],
-  sheet: SheetImportConfig
+  sheet: RegistrationSheetConfig
 ): Promise<RegistrationResult> {
   const result: RegistrationResult = { added: 0, updated: 0 }
 
@@ -439,7 +451,8 @@ export async function mergeRegistrations(
         ...existing,
         osuId,
         username: incoming.username,
-        discordId: incoming.discordId ?? existing.discordId,
+        discordId: existing.discordId ?? incoming.discordId,
+        discordUsername: incoming.discordUsername ?? existing.discordUsername,
         ppRaw: incoming.ppRaw ?? existing.ppRaw,
         ppRank: incoming.ppRank ?? existing.ppRank,
         description: incoming.description === undefined ? existing.description : incoming.description
@@ -466,7 +479,7 @@ export async function mergeRegistrations(
       teamNames: Object.fromEntries(
         Object.entries(current.teamNames).map(([captainOsuId, name]) => [rekey(captainOsuId), name])
       ),
-      sheet
+      registrationSheet: sheet
     }
   })
 

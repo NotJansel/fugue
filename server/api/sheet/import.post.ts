@@ -18,7 +18,9 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
 
   const body = await readBody<Body>(event)
   const data = await fetchSheet(body.url, body.sheetName)
-  const parsed = toPlayers(data, body.mapping)
+  // Descriptions belong to the registration sheet. Leaving the column unmapped here is what tells
+  // `replacePlayers` to keep the one on file, even if a stale mapping still names one.
+  const parsed = toPlayers(data, { ...body.mapping, description: null })
 
   if (parsed.length === 0) {
     throw apiError(400, 'No usable rows found - check the column mapping.', 'err.sheet.noRows')

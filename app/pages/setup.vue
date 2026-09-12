@@ -59,8 +59,11 @@ const singleAmount = ref(0)
 const applyBulk = () => api('/api/purses/bulk', { amount: bulkPurse.value })
 const applySingle = () => api('/api/purses/set', { discordId: singleDiscordId.value, amount: singleAmount.value })
 
-/** Everyone with a Discord account attached, verified or typed in - the list an organiser fixes. */
-const linked = computed(() => players.value.filter(player => player.discordId))
+/**
+ * Everyone with a Discord account attached, verified or typed in, plus anyone whose sheet username
+ * matched no member of the server - the list an organiser fixes.
+ */
+const linked = computed(() => players.value.filter(player => player.discordId || player.discordUsername))
 
 const unlink = (osuId: string) => api('/api/links/unlink', { osuId })
 const setDiscordId = (osuId: string, discordId: string) =>
@@ -85,6 +88,7 @@ const setDiscordId = (osuId: string, discordId: string) =>
 
     <template v-else>
       <div class="grid gap-6 xl:grid-cols-2">
+        <RegistrationImport />
         <QualifierImport />
         <MappoolImport />
 
@@ -314,11 +318,24 @@ const setDiscordId = (osuId: string, discordId: string) =>
                 {{ player.username }}
               </p>
               <p class="text-xs text-muted tnum">
-                {{ player.discordId }}
+                <span v-if="player.discordUsername">@{{ player.discordUsername }}</span>
+                <span v-if="player.discordUsername && player.discordId"> · </span>
+                <span v-if="player.discordId">{{ player.discordId }}</span>
               </p>
             </div>
 
             <UBadge
+              v-if="!player.discordId"
+              color="warning"
+              variant="subtle"
+              size="sm"
+              icon="i-lucide-circle-help"
+            >
+              {{ t('setup.links.unmatched') }}
+            </UBadge>
+
+            <UBadge
+              v-else
               :color="player.discordVerified ? 'secondary' : 'neutral'"
               variant="subtle"
               size="sm"
@@ -347,7 +364,7 @@ const setDiscordId = (osuId: string, discordId: string) =>
               {{ t('setup.links.unlink') }}
             </UButton>
             <UButton
-              v-else
+              v-else-if="player.discordId"
               size="xs"
               color="neutral"
               variant="ghost"

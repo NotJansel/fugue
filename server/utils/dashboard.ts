@@ -21,6 +21,7 @@ import { getTournament } from './tournament-store'
 const redactPlayer = (player: PlayerDto): PlayerDto => ({
   ...player,
   discordId: null,
+  discordUsername: null,
   discordVerified: false,
   balance: null,
   held: null,
@@ -69,6 +70,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       username: player.username,
       seed: index + 1,
       discordId: player.discordId ?? null,
+      discordUsername: player.discordUsername ?? null,
       discordVerified: player.discordId != null && verified.get(player.osuId) === player.discordId,
       qualScore: player.qualScore ?? null,
       sheetSeed: player.sheetSeed ?? null,
@@ -153,6 +155,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     auctionLeader,
     warnings: warnings(tournament),
     sheet: guest ? null : tournament.sheet ?? null,
+    registrationSheet: guest ? null : tournament.registrationSheet ?? null,
     importProgress: currentImportProgress(),
     poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
   }

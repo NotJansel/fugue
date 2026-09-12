@@ -166,8 +166,11 @@ const en = {
   'setup.sheet.enrich': 'Look every player up on the osu! API (slower, fills in pp and rank)',
   'setup.sheet.import': 'Import players',
   'setup.sheet.note': 'Re-importing keeps manual Discord links, captain overrides and anything already bought.',
-  'setup.sheet.register': 'Import registrations only',
-  'setup.sheet.registerNote': 'Registrations only adds new sign-ups at the bottom of the seeding and updates names, Discord IDs and descriptions. Score and seed columns are ignored, and nobody is removed.',
+
+  'setup.registration.title': 'Registration sheet',
+  'setup.registration.hint': 'Who signed up, and what they wrote about themselves. Usually its own document, separate from the qualifier results.',
+  'setup.registration.import': 'Import registrations',
+  'setup.registration.note': 'Adds new sign-ups at the bottom of the seeding and updates names, Discord IDs and descriptions of players already on file. Nobody is removed, and no seed or result is touched.',
   'setup.sheet.importing': 'Importing {done} of {total}…',
 
   'setup.mappool.title': 'Mappool sheet',
@@ -223,6 +226,7 @@ const en = {
   'setup.links.hint': 'A verified link means the player signed in with that osu! account themselves.',
   'setup.links.verified': 'Verified',
   'setup.links.manual': 'Typed in',
+  'setup.links.unmatched': 'Not on the server',
   'setup.links.unlink': 'Unlink',
   'setup.links.none': 'Nobody has linked an osu! account yet.',
   'setup.links.assign': 'Discord ID',
@@ -235,6 +239,7 @@ const en = {
 
   'ok.imported': 'Imported {count} players.',
   'ok.registered': 'Added {added} new players, updated {updated}.',
+  'ok.registeredUnmatched': 'Added {added} new players, updated {updated}. {unmatched} Discord username(s) matched no member of the server - see osu! links below.',
   'ok.mappool.saved': 'Saved a mappool of {count} map(s).',
   'ok.mappool.imported': 'Imported {count} maps, {bound} bound to a score column.',
   'ok.mappool.refreshed': 'Re-rated {rated} of {count} map(s).',
@@ -437,8 +442,11 @@ const de: Record<keyof typeof en, string> = {
   'setup.sheet.enrich': 'Jeden Spieler über die osu!-API nachschlagen (langsamer, ergänzt pp und Rang)',
   'setup.sheet.import': 'Spieler importieren',
   'setup.sheet.note': 'Ein erneuter Import behält manuelle Discord-Verknüpfungen, Captain-Vorgaben und bereits gekaufte Spieler.',
-  'setup.sheet.register': 'Nur Anmeldungen importieren',
-  'setup.sheet.registerNote': 'Nur Anmeldungen hängt neue Spieler unten ans Seeding an und aktualisiert Namen, Discord-IDs und Beschreibungen. Punkte- und Seed-Spalten werden ignoriert, und niemand wird entfernt.',
+
+  'setup.registration.title': 'Anmeldetabelle',
+  'setup.registration.hint': 'Wer sich angemeldet hat und was die Spieler über sich geschrieben haben. Meist ein eigenes Dokument, getrennt von den Qualifier-Ergebnissen.',
+  'setup.registration.import': 'Anmeldungen importieren',
+  'setup.registration.note': 'Hängt neue Anmeldungen unten ans Seeding an und aktualisiert Namen, Discord-IDs und Beschreibungen vorhandener Spieler. Niemand wird entfernt, Seeds und Ergebnisse bleiben unverändert.',
   'setup.sheet.importing': 'Importiere {done} von {total}…',
 
   'setup.mappool.title': 'Mappool-Tabelle',
@@ -494,6 +502,7 @@ const de: Record<keyof typeof en, string> = {
   'setup.links.hint': 'Verifiziert heißt: Der Spieler hat sich selbst mit diesem osu!-Konto angemeldet.',
   'setup.links.verified': 'Verifiziert',
   'setup.links.manual': 'Eingetragen',
+  'setup.links.unmatched': 'Nicht auf dem Server',
   'setup.links.unlink': 'Lösen',
   'setup.links.none': 'Noch hat niemand ein osu!-Konto verknüpft.',
   'setup.links.assign': 'Discord-ID',
@@ -506,6 +515,7 @@ const de: Record<keyof typeof en, string> = {
 
   'ok.imported': '{count} Spieler importiert.',
   'ok.registered': '{added} neue Spieler hinzugefügt, {updated} aktualisiert.',
+  'ok.registeredUnmatched': '{added} neue Spieler hinzugefügt, {updated} aktualisiert. {unmatched} Discord-Name(n) passen zu keinem Mitglied des Servers - siehe osu!-Verknüpfungen unten.',
   'ok.mappool.saved': 'Mappool mit {count} Map(s) gespeichert.',
   'ok.mappool.imported': '{count} Maps importiert, {bound} an eine Punktespalte gebunden.',
   'ok.mappool.refreshed': '{rated} von {count} Map(s) neu bewertet.',

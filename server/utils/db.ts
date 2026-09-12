@@ -126,6 +126,8 @@ const schema = `
     seed          integer NOT NULL,
     username      text NOT NULL,
     discord_id    text,
+    -- As the registration sheet wrote it; discord_id is what bids are keyed by.
+    discord_username  text,
     qual_score    double precision,
     sheet_seed    integer,
     pp_raw        double precision,
@@ -136,8 +138,9 @@ const schema = `
     extra         jsonb NOT NULL DEFAULT '{}'::jsonb
   );
 
-  -- Added after the first release, so a database created before it gets the column here.
+  -- Added after the first release, so a database created before them gets the columns here.
   ALTER TABLE players ADD COLUMN IF NOT EXISTS description text;
+  ALTER TABLE players ADD COLUMN IF NOT EXISTS discord_username text;
 
   CREATE UNIQUE INDEX IF NOT EXISTS players_seed_idx ON players (seed);
 
@@ -179,7 +182,7 @@ const schema = `
   );
 
   CREATE TABLE IF NOT EXISTS sheet_config (
-    -- 'qualifier' or 'mappool' - two different documents as a rule.
+    -- 'qualifier', 'registration' or 'mappool' - different documents as a rule.
     kind         text PRIMARY KEY,
     url          text NOT NULL,
     sheet_name   text,

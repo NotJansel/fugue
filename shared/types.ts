@@ -20,6 +20,11 @@ export interface TournamentPlayer {
   username: string
   /** Discord user this player controls. Required for captains, since bids are keyed by Discord ID. */
   discordId?: string | null
+  /**
+   * Discord username as the registration sheet wrote it, without the `@`. Kept beside `discordId`
+   * because a name the tournament server could not match still tells an organiser who to link.
+   */
+  discordUsername?: string | null
   /** Qualifier metric the import sorted on (z-score, accuracy, points - whatever the sheet holds). */
   qualScore?: number | null
   /** Seed as stated by the sheet, kept for reference after manual reordering. */
@@ -93,6 +98,16 @@ export interface ColumnMapping {
   discordId?: string | null
   score?: string | null
   seed?: string | null
+}
+
+/**
+ * Which column of the *registration* sheet feeds which player field. A different document to the
+ * qualifier results: it knows who signed up and what they wrote, not how anyone placed.
+ */
+export interface RegistrationColumnMapping {
+  username: string
+  osuId?: string | null
+  discordId?: string | null
   description?: string | null
 }
 
@@ -123,6 +138,14 @@ export interface MappoolSheetConfig {
   importedAt?: number | null
   /** Round the last import filled in - all rounds share the one sheet, so only this varies. */
   stage?: string | null
+}
+
+/** Everything needed to re-run a registration import without re-entering it. */
+export interface RegistrationSheetConfig {
+  url: string
+  sheetName?: string | null
+  mapping: RegistrationColumnMapping
+  importedAt?: number | null
 }
 
 /**
@@ -171,6 +194,8 @@ export interface TournamentState {
   sheet?: SheetImportConfig | null
   /** Where the mappool was last imported from - a different document to `sheet` as a rule. */
   mappoolSheet?: MappoolSheetConfig | null
+  /** Where registrations were last imported from - also its own document. */
+  registrationSheet?: RegistrationSheetConfig | null
 }
 
 /** An osu! account whose owner proved themselves through osu! OAuth2. */
@@ -237,6 +262,7 @@ export interface PlayerDto {
   /** 1-based position in the seeding. */
   seed: number
   discordId: string | null
+  discordUsername: string | null
   /** Whether `discordId` comes from this player signing in with their own osu! account. */
   discordVerified: boolean
   qualScore: number | null
@@ -335,6 +361,7 @@ export interface DashboardState {
   auctionLeader: string | null
   warnings: TournamentWarning[]
   sheet: SheetImportConfig | null
+  registrationSheet: RegistrationSheetConfig | null
   importProgress: ImportProgress | null
   poolRemaining: number
 }
@@ -346,6 +373,7 @@ export interface SheetPreview {
   rowCount: number
   suggestedMapping: ColumnMapping | null
   suggestedMappoolMapping: MappoolColumnMapping | null
+  suggestedRegistrationMapping: RegistrationColumnMapping | null
 }
 
 /**

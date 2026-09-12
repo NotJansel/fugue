@@ -93,18 +93,28 @@ trustworthy — purses and bids are keyed by Discord ID, while everything else i
 
 Share the qualifier sheet as *anyone with the link can view* and paste its URL into the Setup tab.
 The dashboard reads the sheet's CSV export — no Google credentials involved — shows you the columns
-it found, and lets you map them onto player name, osu! ID, Discord ID, qualifier score, seed and
-player description.
+it found, and lets you map them onto player name, osu! ID, Discord ID, qualifier score and seed.
 
 Players are ordered by the seed column if there is one, otherwise by qualifier score, and each is
 looked up on the osu! API v2 to fill in ID, pp and rank. Re-importing after fixing the sheet keeps
-manual Discord links, captain overrides and anything already bought at auction.
+manual Discord links, captain overrides, player descriptions and anything already bought at auction.
 
-**Import registrations only** is the import for before qualifiers, or for late sign-ups after them.
-It merges instead of replacing: new players join at the bottom of the seeding, players already on
-file get their name, Discord ID and description updated, and score and seed columns are ignored, so
-no seeding or result is touched and nobody is removed. The description shows on the seeding list,
-on the dashboard while the player is up for auction, and on the Discord auction card.
+## Registration import
+
+The registration list is its own sheet, with its own card in the Setup tab, mapped onto player name,
+osu! ID, Discord ID and player description. It merges instead of replacing: new sign-ups join at the
+bottom of the seeding, players already on file get their name, Discord username and description
+updated, and nobody is removed or reseeded.
+
+The name column may carry the Discord username too - in the same cell as `osuname @discordname`, or
+on a row of its own right under the name - and the `@` is what tells the two apart. Registration
+sheets often have no header row, so the preview picks that column, and the one with the longest
+text as the description, by what is in them. Each username is looked up among the members of
+`GUILD_ID` for the user ID bids are keyed by, by exact username or by a display name only one member
+has; one that matches nobody is listed under **osu! links** as not on the server, and signing in
+with osu! still links it. A Discord ID already on file is never replaced. A later qualifier import keeps the descriptions of everyone it
+still contains. The description shows on the seeding list, on the dashboard while the player is up
+for auction, and on the Discord auction card.
 
 ## Captains and seeding
 

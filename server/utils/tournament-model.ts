@@ -22,7 +22,8 @@ export const emptyTournament = (): TournamentState => ({
   teamNames: {},
   mappool: [],
   sheet: null,
-  mappoolSheet: null
+  mappoolSheet: null,
+  registrationSheet: null
 })
 
 /** `1,234,567` or `12,345` - digits in groups of three, i.e. thousands separators, not a decimal comma. */

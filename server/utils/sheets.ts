@@ -2,6 +2,7 @@ import type {
   ColumnMapping,
   MappoolColumnMapping,
   QualifierMap,
+  RegistrationColumnMapping,
   SheetPreview,
   TournamentPlayer
 } from '#shared/types'
@@ -44,6 +45,15 @@ const descriptionAliases = ['description', 'player description', 'about', 'about
 const slotAliases = ['slot', 'pick', 'map slot', 'mod', 'code', 'map', 'beatmap']
 const beatmapAliases = ['beatmap id', 'beatmapid', 'map id', 'mapid', 'b id', 'link', 'url', 'beatmap', 'map link']
 const scoreColumnAliases = ['score column', 'column', 'header', 'qualifier column', 'score header']
+
+/**
+ * A Discord handle written into the same cell as the osu! name: "Cookiezi @shigetora". Discord
+ * usernames have no spaces, so the handle ends at the first one; an old-style `#1234` is tolerated.
+ */
+const discordHandlePattern = /(?<=^|[\s(])@([a-z0-9_.]{2,32})(?:#\d{4})?(?=$|[\s,;|/)\]])/i
+
+/** A Discord user ID, as opposed to a username. */
+const snowflakePattern = /^\d{5,}$/
 
 /** What [dedupeHeaders] invents for a blank header. A made-up name can never match a real alias. */
 const syntheticPattern = /^Column \d+( \(\d+\))?$/
@@ -292,9 +302,53 @@ export function suggestMapping(headers: string[]): ColumnMapping | null {
     osuId: matchAlias(headers, osuIdAliases),
     discordId: matchAlias(headers, discordAliases),
     score: matchAlias(headers, scoreAliases),
-    seed: matchAlias(headers, seedAliases),
-    description: matchAlias(headers, descriptionAliases)
+    seed: matchAlias(headers, seedAliases)
   }
+}
+
+/**
+ * The same guess for a registration sheet, which has a description where results would be.
+ *
+ * Registration sheets are laid out for people to read, often with no header row at all, so the
+ * contents decide when the headers don't. The name column is the one where names and `@` handles take
+ * turns - some of its cells are handles but far from all, which a column of nothing but handles is
+ * not. The description is the column with the longest text in it.
+ */
+export function suggestRegistrationMapping(
+  headers: string[],
+  rows: Record<string, string>[] = []
+): RegistrationColumnMapping | null {
+  const handleShares = headers
+    .map(header => ({ header, share: shareOf(rows, header, value => value.startsWith('@')) }))
+    .filter(({ share }) => share >= 0.25 && share <= 0.75)
+    .sort((a, b) => b.share - a.share)
+
+  const byHandles = handleShares[0]?.header ?? null
+  const username = matchAlias(headers, usernameAliases) ?? byHandles ?? matchAlias(headers, osuIdAliases)
+  if (username == null) return null
+
+  return {
+    username,
+    osuId: matchAlias(headers, osuIdAliases),
+    // A handle interleaved into the name column already is the Discord column.
+    discordId: username === byHandles ? null : matchAlias(headers, discordAliases),
+    description: matchAlias(headers, descriptionAliases)
+      ?? longestTextColumn(headers.filter(header => header !== username), rows)
+  }
+}
+
+/** The column whose filled cells are longest on average - free text rather than names or numbers. */
+function longestTextColumn(headers: string[], rows: Record<string, string>[]): string | null {
+  const scored = headers.flatMap((header) => {
+    const values = rows.map(row => row[header]?.trim()).filter((value): value is string => Boolean(value))
+    if (values.length < 3) return []
+
+    const average = values.reduce((total, value) => total + value.length, 0) / values.length
+
+    return average >= 15 ? [{ header, average }] : []
+  }).sort((a, b) => b.average - a.average)
+
+  return scored[0]?.header ?? null
 }
 
 /**
@@ -337,6 +391,7 @@ export async function previewSheet(input: string, sheetName?: string | null): Pr
     sampleRows: data.rows.slice(0, PREVIEW_ROWS),
     rowCount: data.rows.length,
     suggestedMapping: suggestMapping(data.headers),
+    suggestedRegistrationMapping: suggestRegistrationMapping(data.headers, data.rows),
     // The whole sheet, not just the preview slice: the slot and beatmap columns are recognised by
     // what is *in* them, and a pool sheet's first rows are as often a heading as they are data.
     suggestedMappoolMapping: suggestMappoolMapping(data.headers, data.rows)
@@ -391,31 +446,84 @@ export function toMaps(
 }
 
 /**
+ * Splits a name cell into the osu! name and the `@` Discord handle written beside it, if any.
+ *
+ * Only separators are trimmed from what is left - osu! names may themselves contain `-`, `_`, `[`
+ * and `]`, so those stay where they are.
+ */
+export function splitDiscordHandle(cell: string): { name: string, discordUsername: string | null } {
+  const trimmed = cell.trim()
+
+  // osu! names cannot contain an `@`, so a cell that opens with one is nothing but a handle - even one
+  // that isn't a valid username, like a display name ("@Mello :3") typed where the username belonged.
+  if (trimmed.startsWith('@')) {
+    return { name: '', discordUsername: trimmed.slice(1).trim().toLowerCase() || null }
+  }
+
+  const match = discordHandlePattern.exec(cell)
+  if (!match) return { name: cell.trim(), discordUsername: null }
+
+  const name = `${cell.slice(0, match.index)} ${cell.slice(match.index + match[0].length)}`
+    .replace(/\(\s*\)/g, ' ')
+    .replace(/^[\s,;|/]+|[\s,;|/]+$/g, '')
+    .replace(/\s{2,}/g, ' ')
+
+  return { name, discordUsername: match[1]!.toLowerCase() }
+}
+
+/**
  * Maps sheet rows onto players and orders them into a seeding.
  *
  * Ordering prefers an explicit seed column, then a qualifier score (highest first), and otherwise
  * keeps sheet order. The result is only a starting point - the dashboard can reorder it by hand.
+ *
+ * Serves both the qualifier sheet and the registration sheet, so every column but the name is
+ * optional; a registration mapping simply has no score or seed to sort on.
  */
-export function toPlayers(data: SheetData, mapping: ColumnMapping): TournamentPlayer[] {
+export function toPlayers(
+  data: SheetData,
+  mapping: ColumnMapping & RegistrationColumnMapping
+): TournamentPlayer[] {
   const mapped = new Set(
     [mapping.username, mapping.osuId, mapping.discordId, mapping.score, mapping.seed, mapping.description]
       .filter(Boolean) as string[]
   )
 
+  let previous: TournamentPlayer | undefined
+
   const players = data.rows.flatMap((row) => {
-    const username = row[mapping.username]?.trim() ?? ''
+    const nameCell = splitDiscordHandle(row[mapping.username] ?? '')
+    const username = nameCell.name
     const osuId = (mapping.osuId ? row[mapping.osuId]?.trim() : '') ?? ''
-    if (username === '' && osuId === '') return []
+
+    if (username === '' && osuId === '') {
+      // Registration sheets commonly give the Discord handle a row of its own, right under the name
+      // it belongs to. Anything else without a name ends the player above.
+      if (nameCell.discordUsername && previous && !previous.discordUsername) {
+        previous.discordUsername = nameCell.discordUsername
+      } else {
+        previous = undefined
+      }
+
+      return []
+    }
+
+    // A Discord column may hold a user ID or a username; a handle in the name cell counts as the latter.
+    const discordCell = (mapping.discordId ? row[mapping.discordId]?.trim() : '') ?? ''
+    const discordIsId = snowflakePattern.test(discordCell)
+    const discordUsername = nameCell.discordUsername
+      ?? (discordCell !== '' && !discordIsId ? discordCell.replace(/^@/, '').toLowerCase() : null)
 
     const seedCell = mapping.seed ? row[mapping.seed] : null
     const seedValue = seedCell ? parseSheetNumber(seedCell) : null
     const scoreCell = mapping.score ? row[mapping.score] : null
 
-    return [{
+    const player: TournamentPlayer = {
       // Fall back to the username as key until enrichment resolves a real ID.
       osuId: osuId === '' ? `name:${username.toLowerCase()}` : osuId,
       username: username === '' ? osuId : username,
-      discordId: (mapping.discordId ? row[mapping.discordId]?.trim() : '') || null,
+      discordId: discordIsId ? discordCell : null,
+      discordUsername,
       qualScore: scoreCell ? parseSheetNumber(scoreCell) : null,
       sheetSeed: seedValue == null ? null : Math.trunc(seedValue),
       captainMode: 'AUTO',
@@ -424,7 +532,11 @@ export function toPlayers(data: SheetData, mapping: ColumnMapping): TournamentPl
       extra: Object.fromEntries(
         Object.entries(row).filter(([key, value]) => !mapped.has(key) && value !== '')
       )
-    } satisfies TournamentPlayer]
+    }
+
+    previous = player
+
+    return [player]
   })
 
   if (players.some(player => player.sheetSeed != null)) {

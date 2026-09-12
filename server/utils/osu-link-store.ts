@@ -1,10 +1,7 @@
 import type { OsuLink } from '#shared/types'
 import { emitChange } from './bus'
-import { JsonStore } from './json-store'
-
-interface LinkSnapshot {
-  links: Record<string, OsuLink>
-}
+import { query } from './db'
+import { serialiser } from './store-queue'
 
 /** Outcome of recording a link. */
 export type LinkResult
@@ -16,19 +13,48 @@ export type LinkResult
  * Single source of truth for "which osu! account does this Discord user own".
  *
  * Only the identity is kept - the OAuth tokens are used once to read the account and then dropped,
- * since nothing here needs to act on a user's behalf later.
+ * since nothing here needs to act on a user's behalf later. The `osu_links` table is cached here so
+ * that "is this player verified" stays a synchronous question on the dashboard's render path.
  */
-const store = new JsonStore<LinkSnapshot>('osu_links.json', { links: {} })
+const links = new Map<string, OsuLink>()
 
-export const loadOsuLinks = () => store.load()
+const write = serialiser()
 
-export const getOsuLink = (discordId: string): OsuLink | null => store.get().links[discordId] ?? null
+interface LinkRow {
+  discord_id: string
+  osu_id: string
+  username: string
+  avatar_url: string | null
+  country_code: string | null
+  pp_raw: number | null
+  pp_rank: number | null
+  linked_at: number
+}
 
-export const allOsuLinks = (): Record<string, OsuLink> => store.get().links
+export async function loadOsuLinks(): Promise<void> {
+  const rows = await query<LinkRow>('SELECT * FROM osu_links')
+
+  links.clear()
+  for (const row of rows) {
+    links.set(row.discord_id, {
+      osuId: row.osu_id,
+      username: row.username,
+      avatarUrl: row.avatar_url,
+      countryCode: row.country_code,
+      ppRaw: row.pp_raw,
+      ppRank: row.pp_rank,
+      linkedAt: row.linked_at
+    })
+  }
+}
+
+export const getOsuLink = (discordId: string): OsuLink | null => links.get(discordId) ?? null
+
+export const allOsuLinks = (): Record<string, OsuLink> => Object.fromEntries(links)
 
 /** The Discord user that owns an osu! account, if anyone does. */
 export function discordIdForOsuId(osuId: string): string | null {
-  const entry = Object.entries(store.get().links).find(([, link]) => link.osuId === osuId)
+  const entry = [...links.entries()].find(([, link]) => link.osuId === osuId)
 
   return entry?.[0] ?? null
 }
@@ -44,7 +70,28 @@ export async function linkOsuAccount(discordId: string, link: OsuLink): Promise<
   const owner = discordIdForOsuId(link.osuId)
   if (owner && owner !== discordId) return { kind: 'taken', discordId: owner }
 
-  await store.update(current => ({ ...current, links: { ...current.links, [discordId]: link } }))
+  await write(async () => {
+    await query(
+      `INSERT INTO osu_links (
+         discord_id, osu_id, username, avatar_url, country_code, pp_raw, pp_rank, linked_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (discord_id) DO UPDATE SET
+         osu_id = EXCLUDED.osu_id,
+         username = EXCLUDED.username,
+         avatar_url = EXCLUDED.avatar_url,
+         country_code = EXCLUDED.country_code,
+         pp_raw = EXCLUDED.pp_raw,
+         pp_rank = EXCLUDED.pp_rank,
+         linked_at = EXCLUDED.linked_at`,
+      [
+        discordId, link.osuId, link.username, link.avatarUrl ?? null, link.countryCode ?? null,
+        link.ppRaw ?? null, link.ppRank ?? null, link.linkedAt
+      ]
+    )
+
+    links.set(discordId, link)
+  })
+
   emitChange()
 
   return { kind: 'linked', link }
@@ -52,12 +99,11 @@ export async function linkOsuAccount(discordId: string, link: OsuLink): Promise<
 
 /** Drops a link so the osu! account can be claimed again. Returns whether there was one. */
 export async function unlinkOsuAccount(discordId: string): Promise<boolean> {
-  if (!store.get().links[discordId]) return false
+  if (!links.has(discordId)) return false
 
-  await store.update((current) => {
-    const { [discordId]: _dropped, ...links } = current.links
-
-    return { ...current, links }
+  await write(async () => {
+    await query('DELETE FROM osu_links WHERE discord_id = $1', [discordId])
+    links.delete(discordId)
   })
 
   emitChange()

@@ -1,37 +1,56 @@
 import { emitChange } from './bus'
-import { JsonStore } from './json-store'
-
-interface PurseSnapshot {
-  balances: Record<string, number>
-}
+import { query } from './db'
+import { serialiser } from './store-queue'
 
 /**
  * Purse balances per Discord user, and the funds held against a live bid.
  *
- * Balances are persisted; holds are not. A hold only means anything while an auction is running, and
- * an auction does not survive a restart either - so a crash mid-auction releases everyone's money
- * rather than stranding it.
+ * Balances live in the `purses` table and are cached here, so the dashboard can render a team's gold
+ * without waiting on a query; each change writes the one row it touches.
+ *
+ * Holds are *not* persisted. A hold only means anything while an auction is running, and an auction
+ * does not survive a restart either - so a crash mid-auction releases everyone's money rather than
+ * stranding it.
  */
-const store = new JsonStore<PurseSnapshot>('purses.json', { balances: {} })
+const balances = new Map<string, number>()
 
 const holds = new Map<string, number>()
 
-export const loadPurses = () => store.load()
+const write = serialiser()
 
-export const getBalance = (userId: string): number => store.get().balances[userId] ?? 0
+export async function loadPurses(): Promise<void> {
+  const rows = await query<{ discord_id: string, balance: number }>(
+    'SELECT discord_id, balance FROM purses'
+  )
 
-export const getAllBalances = (): Record<string, number> => store.get().balances
+  balances.clear()
+  for (const row of rows) balances.set(row.discord_id, row.balance)
+}
+
+export const getBalance = (userId: string): number => balances.get(userId) ?? 0
+
+export const getAllBalances = (): Record<string, number> => Object.fromEntries(balances)
 
 export const getAllHolds = (): Record<string, number> => Object.fromEntries(holds)
 
-export async function setBalance(userId: string, amount: number): Promise<void> {
-  await store.update(current => ({
-    ...current,
-    balances: { ...current.balances, [userId]: Math.max(Math.trunc(amount), 0) }
-  }))
+/** Writes one balance, in memory and in the database. Negative amounts settle at zero. */
+async function store(userId: string, amount: number): Promise<void> {
+  const value = Math.max(Math.trunc(amount), 0)
+
+  await write(async () => {
+    await query(
+      `INSERT INTO purses (discord_id, balance) VALUES ($1, $2)
+       ON CONFLICT (discord_id) DO UPDATE SET balance = EXCLUDED.balance`,
+      [userId, value]
+    )
+
+    balances.set(userId, value)
+  })
 
   emitChange()
 }
+
+export const setBalance = (userId: string, amount: number): Promise<void> => store(userId, amount)
 
 /** What the user could still commit: their balance, minus anything already held against a bid. */
 const available = (userId: string): number => getBalance(userId) - (holds.get(userId) ?? 0)
@@ -69,12 +88,7 @@ export async function settleHold(userId: string, amount: number): Promise<boolea
     return false
   }
 
-  await store.update(current => ({
-    ...current,
-    balances: { ...current.balances, [userId]: (current.balances[userId] ?? 0) - amount }
-  }))
-
-  emitChange()
+  await store(userId, getBalance(userId) - amount)
 
   return true
 }

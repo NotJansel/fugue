@@ -25,10 +25,10 @@ field breaks existing deployments.
 - `server/utils/tournament-store.ts` is the equivalent for players, seeding, captains and rosters.
   Seeding order *is* the list order in `players`; captains, the pool and team slots are all derived
   (`tournament-model.ts`), never stored, so they can't drift.
-- The mappool stores **no scores**. Each slot names the sheet column its scores live in, and the
-  values stay in `TournamentPlayer.extra` where the import left them; per-map score and map rank are
-  derived on every dashboard build. So re-pointing a slot at another column, or re-importing the
-  sheet, needs no migration. `POST /api/mappool` replaces the pool wholesale and fills in beatmap
+- The mappool stores **no scores**. Each slot names the sheet column its scores live in
+  (`mappool.score_column`), and the values stay in `players.extra` where the import left them;
+  per-map score and map rank are derived on every dashboard build. So re-pointing a slot at another
+  column, or re-importing the sheet, needs no migration. `POST /api/mappool` replaces the pool wholesale and fills in beatmap
   metadata, skipping slots whose beatmap ID *and* mods have not changed. `POST /api/mappool/refresh`
   re-asks about every slot regardless.
 - `QualifierMap.stars` is the rating **with the slot's mods applied**. Mods default to whatever the

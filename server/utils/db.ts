@@ -1,0 +1,218 @@
+import type { PoolClient, QueryResultRow } from 'pg'
+import pg from 'pg'
+import { config } from './config'
+
+/**
+ * The one connection pool, and the schema it expects to find.
+ *
+ * Everything the tournament keeps lives in Postgres: seeding, rosters, the mappool, purses and osu!
+ * links. Each store owns its own tables and holds the rows it has read in memory, so a dashboard
+ * render is still a synchronous read - the database is what a mutation is written *through*, not
+ * something the render path waits on.
+ */
+const { Pool, types } = pg
+
+/**
+ * `bigint` and `numeric` come back as strings by default, since either can hold more than a JS number
+ * can. Nothing here stores a value anywhere near that large - epoch millis and star ratings - and the
+ * types the dashboard agrees on are plain numbers, so both are parsed on the way out.
+ */
+types.setTypeParser(types.builtins.INT8, value => Number(value))
+types.setTypeParser(types.builtins.NUMERIC, value => Number(value))
+
+let pool: pg.Pool | null = null
+
+/**
+ * The pool, created on first use.
+ *
+ * With no `DATABASE_URL` the driver falls back to the standard `PGHOST`/`PGUSER`/`PGDATABASE`
+ * variables, so a deployment that already sets those needs nothing extra.
+ */
+export function db(): pg.Pool {
+  pool ??= new Pool({
+    connectionString: config.databaseUrl ?? undefined,
+    // An event-day tool has a handful of concurrent writers at most; the rest is idle SSE.
+    max: 10,
+    application_name: 'fugue'
+  })
+
+  return pool
+}
+
+/** Runs a statement and hands back the rows. */
+export async function query<R extends QueryResultRow>(
+  text: string,
+  values: unknown[] = []
+): Promise<R[]> {
+  const result = await db().query<R>(text, values)
+
+  return result.rows
+}
+
+/**
+ * Runs `block` inside a transaction on one connection, rolling back if it throws.
+ *
+ * Every store writes through this rather than statement by statement: a mutation is one new snapshot
+ * of the thing being changed, and half of one on disk is worse than none.
+ */
+export async function withTransaction<T>(block: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await db().connect()
+
+  try {
+    await client.query('BEGIN')
+    const result = await block(client)
+    await client.query('COMMIT')
+
+    return result
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
+/**
+ * Builds the `VALUES` list for a multi-row insert, numbering the placeholders across every row.
+ *
+ * Returns `null` for an empty list, which is the caller's cue to skip the statement entirely -
+ * `INSERT ... VALUES` with nothing after it is a syntax error, and a tournament with no players yet
+ * is perfectly ordinary.
+ */
+export function valuesList<T>(
+  rows: T[],
+  columns: (row: T, index: number) => unknown[]
+): { text: string, values: unknown[] } | null {
+  if (rows.length === 0) return null
+
+  const values: unknown[] = []
+  const text = rows.map((row, index) => {
+    const cells = columns(row, index)
+    const placeholders = cells.map((_, index) => `$${values.length + index + 1}`)
+    values.push(...cells)
+
+    return `(${placeholders.join(', ')})`
+  }).join(', ')
+
+  return { text, values }
+}
+
+/**
+ * Creates every table if it isn't there yet.
+ *
+ * Kept as plain `IF NOT EXISTS` statements rather than a migration tool: the schema is small, it is
+ * applied at boot, and a fresh database and an existing one then take exactly the same path.
+ */
+const schema = `
+  CREATE TABLE IF NOT EXISTS tournament_settings (
+    -- One row, forever: the check makes a second one impossible rather than merely unlikely.
+    id                      boolean PRIMARY KEY DEFAULT true CHECK (id),
+    team_size               integer NOT NULL,
+    min_team_size           integer NOT NULL,
+    field_size              integer,
+    min_bid_increment       integer NOT NULL,
+    max_bid_increment       integer NOT NULL,
+    second_run              boolean NOT NULL,
+    captain_count_override  integer,
+    seeding_locked          boolean NOT NULL,
+    default_starting_bid    integer NOT NULL,
+    default_max_bid         integer NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS players (
+    osu_id        text PRIMARY KEY,
+    -- Seeding order. 0-based, so it is the index in the list the dashboard reorders.
+    seed          integer NOT NULL,
+    username      text NOT NULL,
+    discord_id    text,
+    qual_score    double precision,
+    sheet_seed    integer,
+    pp_raw        double precision,
+    pp_rank       integer,
+    captain_mode  text NOT NULL DEFAULT 'AUTO',
+    -- Sheet columns not bound to a field, including the per-map scores.
+    extra         jsonb NOT NULL DEFAULT '{}'::jsonb
+  );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS players_seed_idx ON players (seed);
+
+  CREATE TABLE IF NOT EXISTS rosters (
+    captain_osu_id  text NOT NULL REFERENCES players (osu_id) ON DELETE CASCADE,
+    player_osu_id   text NOT NULL REFERENCES players (osu_id) ON DELETE CASCADE,
+    price           integer NOT NULL,
+    -- Order bought, so a team reads in the order the auction filled it.
+    position        integer NOT NULL,
+    PRIMARY KEY (captain_osu_id, player_osu_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS team_names (
+    captain_osu_id  text PRIMARY KEY REFERENCES players (osu_id) ON DELETE CASCADE,
+    name            text NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS mappool (
+    id              text PRIMARY KEY,
+    position        integer NOT NULL,
+    label           text NOT NULL,
+    stage           text NOT NULL DEFAULT '',
+    mods            text NOT NULL DEFAULT '',
+    -- Header of the qualifier-sheet column this slot's scores live in. No scores are stored here.
+    score_column    text,
+    beatmap_id      text,
+    beatmapset_id   text,
+    artist          text,
+    title           text,
+    version         text,
+    -- Rating and settings with this slot's mods already applied.
+    stars           double precision,
+    cs              double precision,
+    ar              double precision,
+    od              double precision,
+    hp              double precision,
+    bpm             double precision,
+    length_seconds  integer
+  );
+
+  CREATE TABLE IF NOT EXISTS sheet_config (
+    -- 'qualifier' or 'mappool' - two different documents as a rule.
+    kind         text PRIMARY KEY,
+    url          text NOT NULL,
+    sheet_name   text,
+    mapping      jsonb NOT NULL,
+    imported_at  bigint,
+    -- Round the last mappool import filled in. Unused by the qualifier sheet.
+    stage        text
+  );
+
+  CREATE TABLE IF NOT EXISTS purses (
+    -- Keyed by Discord ID: bids and purses are the one half of this that Discord owns.
+    discord_id  text PRIMARY KEY,
+    balance     integer NOT NULL DEFAULT 0 CHECK (balance >= 0)
+  );
+
+  CREATE TABLE IF NOT EXISTS osu_links (
+    discord_id    text PRIMARY KEY,
+    -- One osu! account belongs to exactly one Discord account, enforced here rather than only in code.
+    osu_id        text NOT NULL UNIQUE,
+    username      text NOT NULL,
+    avatar_url    text,
+    country_code  text,
+    pp_raw        double precision,
+    pp_rank       integer,
+    linked_at     bigint NOT NULL
+  );
+`
+
+/** Applies the schema and proves the connection works, so a bad `DATABASE_URL` fails at boot. */
+export async function migrate(): Promise<void> {
+  await db().query(schema)
+}
+
+/** Closes the pool on shutdown so the process can actually exit. */
+export async function closeDatabase(): Promise<void> {
+  const open = pool
+  pool = null
+
+  await open?.end()
+}

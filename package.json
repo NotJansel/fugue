@@ -17,10 +17,12 @@
     "@nuxt/ui": "^4.11.1",
     "discord.js": "^14.27.0",
     "nuxt": "^4.5.2",
+    "pg": "^8.23.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
+    "@types/pg": "^8.23.1",
     "eslint": "^10.10.0",
     "typescript": "^6.0.3",
     "vue-tsc": "^3.3.11"

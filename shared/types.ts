@@ -1,9 +1,10 @@
 /**
  * Everything the dashboard and the server agree on.
  *
- * The persisted shapes (`TournamentState`, `TournamentPlayer`, …) are the same JSON that the Kotlin
- * version wrote, so `data/tournament.json`, `data/purses.json` and `data/osu_links.json` carry over
- * from an existing deployment untouched.
+ * `TournamentState` and everything under it is what the stores hold in memory and what the dashboard
+ * renders from; Postgres keeps it as the tables in `server/utils/db.ts`. These are also the shapes
+ * the Kotlin version wrote as JSON, which is what lets `server/utils/legacy-import.ts` read a
+ * `data/tournament.json`, `data/purses.json` and `data/osu_links.json` from an older deployment.
  */
 
 /** How a player's captain status is decided. */
@@ -122,7 +123,8 @@ export interface MappoolSheetConfig {
 }
 
 /**
- * The whole tournament, persisted as one JSON document.
+ * The whole tournament, as one in-memory snapshot. Spread across `tournament_settings`, `players`,
+ * `rosters`, `team_names`, `mappool` and `sheet_config` in the database.
  *
  * Rosters are keyed by captain osu! ID rather than embedded in a team object, so changing who the
  * captains are can never leave a team record orphaned or duplicated.

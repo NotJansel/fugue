@@ -6,10 +6,18 @@ A Discord bot plus a web dashboard, in one Node process: import qualifier result
 Sheet, work out how many captains the bracket needs, adjust the seeding by hand, and run the auction
 itself — announced in Discord, bid on and followed live in the dashboard.
 
-This is a Nuxt 4 / Nitro port of the original Kotlin (KordEx + Ktor) bot. The stored JSON files are
-unchanged, so an existing `data/` directory carries straight over.
+This is a Nuxt 4 / Nitro port of the original Kotlin (KordEx + Ktor) bot.
 
 ## Running it
+
+It needs a Postgres database — seeding, rosters, the mappool, purses and osu! links all live there.
+An empty one is enough; the schema is created at boot. Point `DATABASE_URL` at it, or set the usual
+`PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` variables and leave it blank.
+
+```bash
+docker run -d --name fugue-postgres -p 5432:5432 \
+  -e POSTGRES_USER=fugue -e POSTGRES_PASSWORD=fugue -e POSTGRES_DB=fugue postgres:17-alpine
+```
 
 Copy `.env.example` to `.env` and fill it in, then:
 
@@ -37,15 +45,16 @@ running `node .output/server/index.mjs` works just as well; behind a reverse pro
 ### Docker
 
 Every push to `main` publishes `git.jansel.dev/jansel/fugue:latest`, plus a tag for the commit it was
-built from. Publish the port and mount the data volume:
+built from. Publish the port and point it at a database:
 
 ```bash
-docker run -p 8080:8080 -v ./data:/bot/data --env-file .env git.jansel.dev/jansel/fugue:latest
+docker run -p 8080:8080 --env-file .env git.jansel.dev/jansel/fugue:latest
 ```
 
-The image listens on 8080 and keeps its three JSON stores in `/bot/data` — mount something over that
-or an auction night dies with the container. `PUBLIC_URL` still has to name the address the outside
-world reaches, or both OAuth2 redirects will point at the container.
+The image listens on 8080 and keeps nothing of its own — `DATABASE_URL` has to reach a Postgres the
+container can see, and without one it exits on boot rather than pretending to work. `PUBLIC_URL`
+still has to name the address the outside world reaches, or both OAuth2 redirects will point at the
+container.
 
 ### Dockge
 
@@ -57,8 +66,8 @@ touching anything else; the app always listens on 8080 inside the container.
 Anything left blank degrades rather than crashes: no `TOKEN` runs the dashboard on its own, no osu!
 credentials means no lookups, and the boot log names whichever is missing.
 
-The stack's state lands in `./data` next to the compose file — back that up, and never point two
-stacks at the same directory.
+The stack brings its own Postgres and keeps it in `./pgdata` next to the compose file — back that up,
+and never point two stacks at the same volume.
 
 ## Dashboard setup
 
@@ -135,7 +144,13 @@ server/
   api/        the JSON API, one file per route
   bot/        the Discord client, its commands and the auction card
   routes/     the OAuth2 round-trips (Discord, then osu!)
-  utils/      stores, osu! API, sheet import, auction state machine
+  utils/      stores, the schema, osu! API, sheet import, auction state machine
 shared/       the types both halves agree on
-data/         purses.json, tournament.json, osu_links.json
 ```
+
+## Upgrading from the JSON stores
+
+Earlier versions kept `purses.json`, `tournament.json` and `osu_links.json` in `DATA_DIR`. Set
+`DATABASE_URL` to an empty database, leave `DATA_DIR` pointing at the old directory, and start: the
+files are read once, written to Postgres, and the log says what came across. Nothing is written back
+to them, so the directory stays as a fallback and can be dropped once the dashboard looks right.

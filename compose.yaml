@@ -5,8 +5,13 @@
 # left blank degrades gracefully rather than crashing: no TOKEN runs the dashboard on its own, no
 # osu! credentials means no lookups, and the log says which is missing at boot.
 #
-# The stack keeps its state in ./data next to this file - purses, seeding, rosters and osu! links.
-# Back that up, and never point two stacks at the same directory.
+# The stack keeps its state in the Postgres service below, whose data directory is ./pgdata next to
+# this file - purses, seeding, rosters, the mappool and osu! links. Back that up, and never point two
+# stacks at the same volume.
+#
+# Upgrading from a version that stored JSON files: leave ./data mounted the first time you start
+# this. The app reads it once into the empty database and says so in the log; after that the mount
+# and the DATA_DIR line can both go.
 
 services:
   fugue:
@@ -18,10 +23,19 @@ services:
       # Host side only - the app always listens on 8080 inside the container.
       - "${HOST_PORT:-8080}:8080"
 
+    depends_on:
+      postgres:
+        condition: service_healthy
+
     volumes:
+      # Only needed to carry an existing JSON deployment over - see the note at the top.
       - ./data:/bot/data
 
     environment:
+      # --- Database ------------------------------------------------------------------------------
+      # The Postgres service below. Nothing outside the stack needs to reach it.
+      DATABASE_URL: postgres://fugue:${POSTGRES_PASSWORD:-fugue}@postgres:5432/fugue
+
       # --- Discord -------------------------------------------------------------------------------
       # The bot token, and the OAuth2 credentials of that same application. Register
       # <PUBLIC_URL>/callback as one of its redirect URIs.
@@ -59,6 +73,35 @@ services:
 
     # An event-day bot runs for months at a time; without a cap the json-file log is the thing that
     # eventually fills the disk.
+    logging:
+      driver: json-file
+
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: fugue-postgres
+    restart: unless-stopped
+
+    # Not published: only the app talks to it, over the stack's own network.
+    environment:
+      POSTGRES_USER: fugue
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fugue}
+      POSTGRES_DB: fugue
+
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+
+    # The app treats an unreachable database as fatal, so it waits for this rather than racing it.
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U fugue -d fugue" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
     logging:
       driver: json-file
 

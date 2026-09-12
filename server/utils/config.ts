@@ -70,7 +70,19 @@ export const config = {
    */
   sessionSecret: str('SESSION_SECRET') ?? randomBytes(32).toString('hex'),
 
-  /** Where the JSON stores live. Same layout and file names as the Kotlin version. */
+  /**
+   * Postgres connection string - `postgres://user:password@host:5432/database`.
+   *
+   * Everything the tournament keeps lives there. Left unset, the driver falls back to the standard
+   * `PGHOST`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` variables, so a deployment that already sets those
+   * needs nothing extra here.
+   */
+  databaseUrl: str('DATABASE_URL'),
+
+  /**
+   * Where a pre-Postgres deployment left its JSON stores. Read once, on the first boot against an
+   * empty database, to carry an existing `data/` directory over; nothing is written back to it.
+   */
   dataDir: str('DATA_DIR') ?? 'data'
 }
 
@@ -122,6 +134,13 @@ export function warnAboutMissingValues(): void {
 
   if (config.botEnabled && !config.token) {
     console.warn('[config] TOKEN is not set - the Discord half stays offline')
+  }
+
+  if (!config.databaseUrl && !str('PGHOST') && !str('PGDATABASE')) {
+    console.warn(
+      '[config] DATABASE_URL is not set - falling back to the libpq defaults (localhost, the current '
+      + 'user, a database of the same name)'
+    )
   }
 
   if (!str('SESSION_SECRET')) {

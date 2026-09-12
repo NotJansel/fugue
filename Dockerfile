@@ -27,12 +27,12 @@ FROM node:22-slim
 # dependencies could not be inlined - so the runtime image needs no package manager and no install.
 COPY --from=build /src/.output /app
 
-# The three JSON stores live here. Mount a volume over it or an auction night dies with the container.
+# State lives in Postgres, not in the image - point `DATABASE_URL` at one or the container exits on
+# boot. This directory is only read, and only once: mount an old deployment's JSON files over it and
+# the first start against an empty database carries them in.
 RUN mkdir -p /bot/data && chown -R node:node /bot
 
-VOLUME [ "/bot/data" ]
-
-# `DATA_DIR` is resolved against the working directory, so this is where the stores end up.
+# `DATA_DIR` is resolved against the working directory, so this is where that mount is looked for.
 WORKDIR /bot
 
 # Run as a non-root user.

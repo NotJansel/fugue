@@ -155,6 +155,7 @@ const en = {
   'sheet.field.discordId': 'Discord ID',
   'sheet.field.score': 'Qualifier score',
   'sheet.field.seed': 'Seed',
+  'sheet.field.description': 'Player description',
   'sheet.field.slot': 'Slot name',
   'sheet.field.beatmap': 'Beatmap',
   'sheet.field.scoreColumn': 'Score column',
@@ -165,6 +166,8 @@ const en = {
   'setup.sheet.enrich': 'Look every player up on the osu! API (slower, fills in pp and rank)',
   'setup.sheet.import': 'Import players',
   'setup.sheet.note': 'Re-importing keeps manual Discord links, captain overrides and anything already bought.',
+  'setup.sheet.register': 'Import registrations only',
+  'setup.sheet.registerNote': 'Registrations only adds new sign-ups at the bottom of the seeding and updates names, Discord IDs and descriptions. Score and seed columns are ignored, and nobody is removed.',
   'setup.sheet.importing': 'Importing {done} of {total}…',
 
   'setup.mappool.title': 'Mappool sheet',
@@ -231,6 +234,7 @@ const en = {
   'warn.noDiscord': 'No Discord account linked for: {names} - they cannot bid or be assigned players.',
 
   'ok.imported': 'Imported {count} players.',
+  'ok.registered': 'Added {added} new players, updated {updated}.',
   'ok.mappool.saved': 'Saved a mappool of {count} map(s).',
   'ok.mappool.imported': 'Imported {count} maps, {bound} bound to a score column.',
   'ok.mappool.refreshed': 'Re-rated {rated} of {count} map(s).',
@@ -422,6 +426,7 @@ const de: Record<keyof typeof en, string> = {
   'sheet.field.discordId': 'Discord-ID',
   'sheet.field.score': 'Qualifier-Punkte',
   'sheet.field.seed': 'Seed',
+  'sheet.field.description': 'Spielerbeschreibung',
   'sheet.field.slot': 'Slotname',
   'sheet.field.beatmap': 'Beatmap',
   'sheet.field.scoreColumn': 'Punktespalte',
@@ -432,6 +437,8 @@ const de: Record<keyof typeof en, string> = {
   'setup.sheet.enrich': 'Jeden Spieler über die osu!-API nachschlagen (langsamer, ergänzt pp und Rang)',
   'setup.sheet.import': 'Spieler importieren',
   'setup.sheet.note': 'Ein erneuter Import behält manuelle Discord-Verknüpfungen, Captain-Vorgaben und bereits gekaufte Spieler.',
+  'setup.sheet.register': 'Nur Anmeldungen importieren',
+  'setup.sheet.registerNote': 'Nur Anmeldungen hängt neue Spieler unten ans Seeding an und aktualisiert Namen, Discord-IDs und Beschreibungen. Punkte- und Seed-Spalten werden ignoriert, und niemand wird entfernt.',
   'setup.sheet.importing': 'Importiere {done} von {total}…',
 
   'setup.mappool.title': 'Mappool-Tabelle',
@@ -498,6 +505,7 @@ const de: Record<keyof typeof en, string> = {
   'warn.noDiscord': 'Kein Discord-Konto verknüpft für: {names} - sie können nicht bieten und keine Spieler bekommen.',
 
   'ok.imported': '{count} Spieler importiert.',
+  'ok.registered': '{added} neue Spieler hinzugefügt, {updated} aktualisiert.',
   'ok.mappool.saved': 'Mappool mit {count} Map(s) gespeichert.',
   'ok.mappool.imported': '{count} Maps importiert, {bound} an eine Punktespalte gebunden.',
   'ok.mappool.refreshed': '{rated} von {count} Map(s) neu bewertet.',

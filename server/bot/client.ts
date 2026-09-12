@@ -29,7 +29,11 @@ interface AuctionCardSubject {
   ppRaw: number
   ppRank: number
   seed: number
+  description: string | null
 }
+
+/** Well inside the 4000 characters Discord allows across a whole Components V2 message. */
+const DESCRIPTION_LIMIT = 1500
 
 /**
  * The auction card, as a raw Components V2 payload.
@@ -63,12 +67,27 @@ export function auctionCard(
     { type: 10, content: `Seed: #${subject.seed}` }
   ]
 
+  const description = subject.description?.trim()
+
+  if (description) {
+    const clipped = description.length > DESCRIPTION_LIMIT
+      ? `${description.slice(0, DESCRIPTION_LIMIT).trimEnd()}…`
+      : description
+
+    components.push(
+      { type: 14, spacing: 2, divider: true },
+      { type: 10, content: clipped.split('\n').map(line => `> ${line}`).join('\n') }
+    )
+  }
+
   if (bidStatus) {
     components.push({ type: 14, spacing: 2, divider: false }, { type: 10, content: bidStatus })
   }
 
   return {
     flags: IS_COMPONENTS_V2,
-    components: [{ type: 17, accent_color: AUCTION_ACCENT, components }]
+    components: [{ type: 17, accent_color: AUCTION_ACCENT, components }],
+    // The description is whatever a player typed into a sheet - an `@everyone` in it must not ping.
+    allowed_mentions: { parse: [] }
   }
 }

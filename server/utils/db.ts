@@ -131,9 +131,13 @@ const schema = `
     pp_raw        double precision,
     pp_rank       integer,
     captain_mode  text NOT NULL DEFAULT 'AUTO',
+    description   text,
     -- Sheet columns not bound to a field, including the per-map scores.
     extra         jsonb NOT NULL DEFAULT '{}'::jsonb
   );
+
+  -- Added after the first release, so a database created before it gets the column here.
+  ALTER TABLE players ADD COLUMN IF NOT EXISTS description text;
 
   CREATE UNIQUE INDEX IF NOT EXISTS players_seed_idx ON players (seed);
 

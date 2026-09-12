@@ -72,7 +72,8 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
       username: player.username,
       ppRaw: player.ppRaw ?? 0,
       ppRank: player.ppRank ?? 0,
-      seed: index + 1
+      seed: index + 1,
+      description: player.description ?? null
     },
     body.startingBid ?? startingBid(tournament),
     body.maxBid ?? tournament.defaultMaxBid

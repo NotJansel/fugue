@@ -25,6 +25,12 @@ field breaks existing deployments.
 - `server/utils/tournament-store.ts` is the equivalent for players, seeding, captains and rosters.
   Seeding order *is* the list order in `players`; captains, the pool and team slots are all derived
   (`tournament-model.ts`), never stored, so they can't drift.
+- There are two player imports off the same form. `POST /api/sheet/import` *replaces* the list
+  (seeded by the sheet); `POST /api/sheet/register` *merges* (`mergeRegistrations`): it appends new
+  sign-ups, updates name/Discord/pp/description on players already on file, ignores score and seed
+  columns and removes nobody. Both match existing players by osu! ID and then by name, since an
+  unenriched import only has a `name:` placeholder. A `description` of `undefined` from `toPlayers`
+  means "no column mapped - keep the one on file"; `null` means the cell was blank.
 - The mappool stores **no scores**. Each slot names the sheet column its scores live in
   (`mappool.score_column`), and the values stay in `players.extra` where the import left them;
   per-map score and map rank are derived on every dashboard build. So re-pointing a slot at another

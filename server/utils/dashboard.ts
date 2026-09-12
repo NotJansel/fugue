@@ -75,6 +75,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       ppRaw: player.ppRaw ?? null,
       ppRank: player.ppRank ?? null,
       captainMode: player.captainMode,
+      description: player.description ?? null,
       inField: takingPart.has(player.osuId),
       isCaptain: captainIds.has(player.osuId),
       soldTo: purchase?.captainOsuId ?? null,

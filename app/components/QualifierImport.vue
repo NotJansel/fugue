@@ -18,8 +18,16 @@ const enrich = ref(true)
 const preview = ref<SheetPreview | null>(null)
 const previewing = ref(false)
 const importing = ref(false)
+const registering = ref(false)
 
-const mapping = ref<ColumnMapping>({ username: '', osuId: null, discordId: null, score: null, seed: null })
+const mapping = ref<ColumnMapping>({
+  username: '',
+  osuId: null,
+  discordId: null,
+  score: null,
+  seed: null,
+  description: null
+})
 
 // Whatever was imported last is the obvious thing to import again, so the fields start there.
 watchEffect(() => {
@@ -38,7 +46,8 @@ const fields = computed(() => [
   { key: 'osuId' as const, label: t('sheet.field.osuId') },
   { key: 'discordId' as const, label: t('sheet.field.discordId') },
   { key: 'score' as const, label: t('sheet.field.score') },
-  { key: 'seed' as const, label: t('sheet.field.seed') }
+  { key: 'seed' as const, label: t('sheet.field.seed') },
+  { key: 'description' as const, label: t('sheet.field.description') }
 ])
 
 async function runPreview() {
@@ -77,6 +86,22 @@ async function runImport() {
     })
   } finally {
     importing.value = false
+  }
+}
+
+/** Adds sign-ups and refreshes what they wrote, without touching the seeding or any result. */
+async function runRegister() {
+  registering.value = true
+
+  try {
+    await api('/api/sheet/register', {
+      url: url.value,
+      sheetName: sheetName.value || null,
+      mapping: mapping.value,
+      enrich: enrich.value
+    })
+  } finally {
+    registering.value = false
   }
 }
 
@@ -186,10 +211,21 @@ const progress = computed(() => state.value?.importProgress ?? null)
             <UButton
               icon="i-lucide-download"
               :loading="importing"
-              :disabled="!mapping.username"
+              :disabled="!mapping.username || registering"
               @click="runImport"
             >
               {{ t('setup.sheet.import') }}
+            </UButton>
+
+            <UButton
+              icon="i-lucide-user-plus"
+              color="neutral"
+              variant="subtle"
+              :loading="registering"
+              :disabled="!mapping.username || importing"
+              @click="runRegister"
+            >
+              {{ t('setup.sheet.register') }}
             </UButton>
 
             <span
@@ -208,6 +244,9 @@ const progress = computed(() => state.value?.importProgress ?? null)
 
           <p class="text-xs text-muted">
             {{ t('setup.sheet.note') }}
+          </p>
+          <p class="text-xs text-muted">
+            {{ t('setup.sheet.registerNote') }}
           </p>
         </div>
       </template>

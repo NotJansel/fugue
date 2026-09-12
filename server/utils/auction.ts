@@ -13,6 +13,7 @@ export interface AuctionSubject {
   ppRaw: number
   ppRank: number
   seed: number
+  description: string | null
 }
 
 export type StartResult
@@ -78,6 +79,7 @@ const toSnapshot = (auction: AuctionState): AuctionSnapshot => ({
   ppRaw: auction.subject.ppRaw,
   ppRank: auction.subject.ppRank,
   seed: auction.subject.seed,
+  description: auction.subject.description,
   startingBid: auction.startingBid,
   maxBid: auction.maxBid,
   highestBid: auction.highestBid,

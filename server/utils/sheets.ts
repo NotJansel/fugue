@@ -40,6 +40,7 @@ const usernameAliases = ['username', 'osu username', 'player', 'player name', 'n
 const discordAliases = ['discord id', 'discordid', 'discord', 'discord tag', 'discord user']
 const scoreAliases = ['score', 'z-score', 'zscore', 'z score', 'average', 'avg', 'points', 'total', 'qualifier score', 'sum']
 const seedAliases = ['seed', 'seeding', 'rank', 'placement', 'place', 'position', '#']
+const descriptionAliases = ['description', 'player description', 'about', 'about me', 'bio', 'introduction', 'intro']
 const slotAliases = ['slot', 'pick', 'map slot', 'mod', 'code', 'map', 'beatmap']
 const beatmapAliases = ['beatmap id', 'beatmapid', 'map id', 'mapid', 'b id', 'link', 'url', 'beatmap', 'map link']
 const scoreColumnAliases = ['score column', 'column', 'header', 'qualifier column', 'score header']
@@ -291,7 +292,8 @@ export function suggestMapping(headers: string[]): ColumnMapping | null {
     osuId: matchAlias(headers, osuIdAliases),
     discordId: matchAlias(headers, discordAliases),
     score: matchAlias(headers, scoreAliases),
-    seed: matchAlias(headers, seedAliases)
+    seed: matchAlias(headers, seedAliases),
+    description: matchAlias(headers, descriptionAliases)
   }
 }
 
@@ -396,7 +398,8 @@ export function toMaps(
  */
 export function toPlayers(data: SheetData, mapping: ColumnMapping): TournamentPlayer[] {
   const mapped = new Set(
-    [mapping.username, mapping.osuId, mapping.discordId, mapping.score, mapping.seed].filter(Boolean) as string[]
+    [mapping.username, mapping.osuId, mapping.discordId, mapping.score, mapping.seed, mapping.description]
+      .filter(Boolean) as string[]
   )
 
   const players = data.rows.flatMap((row) => {
@@ -416,6 +419,8 @@ export function toPlayers(data: SheetData, mapping: ColumnMapping): TournamentPl
       qualScore: scoreCell ? parseSheetNumber(scoreCell) : null,
       sheetSeed: seedValue == null ? null : Math.trunc(seedValue),
       captainMode: 'AUTO',
+      // Left undefined when no column is mapped, which tells a re-import to keep the one on file.
+      description: mapping.description ? row[mapping.description]?.trim() || null : undefined,
       extra: Object.fromEntries(
         Object.entries(row).filter(([key, value]) => !mapped.has(key) && value !== '')
       )

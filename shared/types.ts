@@ -27,6 +27,8 @@ export interface TournamentPlayer {
   ppRaw?: number | null
   ppRank?: number | null
   captainMode: CaptainMode
+  /** What the player wrote about themselves on the sheet. Shown with the seeding and at auction. */
+  description?: string | null
   /** Remaining sheet columns, kept so the dashboard can show them without a schema change. */
   extra: Record<string, string>
 }
@@ -91,6 +93,7 @@ export interface ColumnMapping {
   discordId?: string | null
   score?: string | null
   seed?: string | null
+  description?: string | null
 }
 
 /** Which column of the *mappool* sheet feeds which slot field. A different document to the results. */
@@ -216,6 +219,7 @@ export interface AuctionSnapshot {
   ppRaw: number
   ppRank: number
   seed: number
+  description: string | null
   startingBid: number
   maxBid: number
   highestBid: number
@@ -240,6 +244,7 @@ export interface PlayerDto {
   ppRaw: number | null
   ppRank: number | null
   captainMode: CaptainMode
+  description: string | null
   /** Whether this seed is inside the field that takes part - see `TournamentState.fieldSize`. */
   inField: boolean
   isCaptain: boolean

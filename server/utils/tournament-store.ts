@@ -54,6 +54,7 @@ interface PlayerRow {
   pp_raw: number | null
   pp_rank: number | null
   captain_mode: string
+  description: string | null
   extra: Record<string, string>
 }
 
@@ -145,6 +146,7 @@ const readPlayer = (row: PlayerRow): TournamentPlayer => ({
   ppRaw: row.pp_raw,
   ppRank: row.pp_rank,
   captainMode: row.captain_mode as CaptainMode,
+  description: row.description,
   extra: row.extra ?? {}
 })
 
@@ -219,12 +221,13 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   const players = valuesList(next.players, (player: TournamentPlayer, seed) => [
     player.osuId, seed, player.username, player.discordId ?? null,
     player.qualScore ?? null, player.sheetSeed ?? null, player.ppRaw ?? null, player.ppRank ?? null,
-    player.captainMode, JSON.stringify(player.extra ?? {})
+    player.captainMode, player.description ?? null, JSON.stringify(player.extra ?? {})
   ])
   if (players) {
     await client.query(
       `INSERT INTO players (
-         osu_id, seed, username, discord_id, qual_score, sheet_seed, pp_raw, pp_rank, captain_mode, extra
+         osu_id, seed, username, discord_id, qual_score, sheet_seed, pp_raw, pp_rank, captain_mode,
+         description, extra
        ) VALUES ${players.text}`,
       players.values
     )
@@ -330,27 +333,41 @@ const updatePlayer = (
   }))
 
 /**
+ * Finds the player on file that an imported row stands for: by osu! ID, and failing that by name.
+ *
+ * The name matters because an import without enrichment only has a `name:` placeholder for an ID, so
+ * the same player can arrive under two different keys from two imports.
+ */
+function existingPlayerLookup(players: TournamentPlayer[]): (imported: TournamentPlayer) => TournamentPlayer | undefined {
+  const byId = new Map(players.map(player => [player.osuId, player]))
+  const byName = new Map(players.map(player => [player.username.toLowerCase(), player]))
+
+  return imported => byId.get(imported.osuId) ?? byName.get(imported.username.toLowerCase())
+}
+
+/**
  * Replaces the player list from a fresh import.
  *
  * Manual work is preserved wherever it can be: a player who is still in the sheet keeps their
- * Discord link (unless the sheet now supplies one) and their captain override. Rosters are pruned to
- * players that still exist.
+ * Discord link (unless the sheet now supplies one), their captain override and their description
+ * (unless the import maps a description column). Rosters are pruned to players that still exist.
  */
 export function replacePlayers(
   players: TournamentPlayer[],
   sheet: SheetImportConfig | null
 ): Promise<TournamentState> {
   return update((current) => {
-    const previous = new Map(current.players.map(player => [player.osuId, player]))
+    const existingFor = existingPlayerLookup(current.players)
 
     const merged = players.map((imported) => {
-      const existing = previous.get(imported.osuId)
+      const existing = existingFor(imported)
       if (!existing) return imported
 
       return {
         ...imported,
         discordId: imported.discordId ?? existing.discordId,
-        captainMode: imported.captainMode === 'AUTO' ? existing.captainMode : imported.captainMode
+        captainMode: imported.captainMode === 'AUTO' ? existing.captainMode : imported.captainMode,
+        description: imported.description === undefined ? existing.description : imported.description
       }
     })
 
@@ -370,6 +387,90 @@ export function replacePlayers(
 
     return { ...current, players: merged, rosters, teamNames, sheet: sheet ?? current.sheet }
   })
+}
+
+export interface RegistrationResult {
+  added: number
+  updated: number
+}
+
+/**
+ * Folds a registration sheet into the player list instead of replacing it.
+ *
+ * A registration sheet knows who signed up and what they wrote about themselves, not how anyone did
+ * in qualifiers. So a player already on file keeps their seed, results, captain override and anything
+ * bought, and only has their name, Discord ID, pp and description brought up to date; anyone new joins
+ * at the bottom of the seeding, in sheet order. Nobody is removed - missing from a registration export
+ * is not the same as withdrawn.
+ *
+ * A player on file under a `name:` placeholder takes the real osu! ID once the sheet or enrichment
+ * supplies one, and their roster and team name move with them.
+ */
+export async function mergeRegistrations(
+  registered: TournamentPlayer[],
+  sheet: SheetImportConfig
+): Promise<RegistrationResult> {
+  const result: RegistrationResult = { added: 0, updated: 0 }
+
+  await update((current) => {
+    const existingFor = existingPlayerLookup(current.players)
+    const replaced = new Map<string, TournamentPlayer>()
+    const added: TournamentPlayer[] = []
+    const rekeyed = new Map<string, string>()
+
+    for (const incoming of registered) {
+      const existing = existingFor(incoming)
+
+      if (!existing) {
+        if (added.some(player => player.osuId === incoming.osuId)) continue
+
+        added.push({ ...incoming, qualScore: null, sheetSeed: null, captainMode: 'AUTO', extra: {} })
+        continue
+      }
+
+      if (replaced.has(existing.osuId)) continue
+
+      const osuId = existing.osuId.startsWith('name:') && !incoming.osuId.startsWith('name:')
+        ? incoming.osuId
+        : existing.osuId
+      if (osuId !== existing.osuId) rekeyed.set(existing.osuId, osuId)
+
+      replaced.set(existing.osuId, {
+        ...existing,
+        osuId,
+        username: incoming.username,
+        discordId: incoming.discordId ?? existing.discordId,
+        ppRaw: incoming.ppRaw ?? existing.ppRaw,
+        ppRank: incoming.ppRank ?? existing.ppRank,
+        description: incoming.description === undefined ? existing.description : incoming.description
+      })
+    }
+
+    // A placeholder upgraded to a real ID above can collide with a sign-up that brought the same ID.
+    const kept = current.players.map(player => replaced.get(player.osuId) ?? player)
+    const taken = new Set(kept.map(player => player.osuId))
+    const fresh = added.filter(player => !taken.has(player.osuId))
+
+    result.added = fresh.length
+    result.updated = replaced.size
+
+    const rekey = (osuId: string) => rekeyed.get(osuId) ?? osuId
+
+    return {
+      ...current,
+      players: [...kept, ...fresh],
+      rosters: Object.fromEntries(Object.entries(current.rosters).map(([captainOsuId, members]) => [
+        rekey(captainOsuId),
+        members.map(member => ({ ...member, osuId: rekey(member.osuId) }))
+      ])),
+      teamNames: Object.fromEntries(
+        Object.entries(current.teamNames).map(([captainOsuId, name]) => [rekey(captainOsuId), name])
+      ),
+      sheet
+    }
+  })
+
+  return result
 }
 
 /** Moves a player to a new seeding position, shifting everyone in between. */

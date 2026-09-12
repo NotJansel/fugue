@@ -93,11 +93,18 @@ trustworthy — purses and bids are keyed by Discord ID, while everything else i
 
 Share the qualifier sheet as *anyone with the link can view* and paste its URL into the Setup tab.
 The dashboard reads the sheet's CSV export — no Google credentials involved — shows you the columns
-it found, and lets you map them onto player name, osu! ID, Discord ID, qualifier score and seed.
+it found, and lets you map them onto player name, osu! ID, Discord ID, qualifier score, seed and
+player description.
 
 Players are ordered by the seed column if there is one, otherwise by qualifier score, and each is
 looked up on the osu! API v2 to fill in ID, pp and rank. Re-importing after fixing the sheet keeps
 manual Discord links, captain overrides and anything already bought at auction.
+
+**Import registrations only** is the import for before qualifiers, or for late sign-ups after them.
+It merges instead of replacing: new players join at the bottom of the seeding, players already on
+file get their name, Discord ID and description updated, and score and seed columns are ignored, so
+no seeding or result is touched and nobody is removed. The description shows on the seeding list,
+on the dashboard while the player is up for auction, and on the Discord auction card.
 
 ## Captains and seeding
 

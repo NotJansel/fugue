@@ -74,6 +74,13 @@ const onDrop = () => {
         <span v-if="player.qualScore != null"> · {{ number(player.qualScore, 2) }}</span>
         <span v-if="player.sheetSeed != null"> · {{ t('seeding.sheetSeed', { seed: player.sheetSeed }) }}</span>
       </p>
+      <p
+        v-if="player.description"
+        class="mt-0.5 line-clamp-2 text-xs text-toned"
+        :title="player.description"
+      >
+        {{ player.description }}
+      </p>
     </div>
 
     <UBadge

@@ -65,6 +65,13 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
                 <span>{{ number(auction.ppRaw) }} {{ t('common.pp') }}</span>
                 <span>{{ t('common.rank') }} #{{ number(auction.ppRank) }}</span>
               </div>
+
+              <p
+                v-if="auction.description"
+                class="max-w-prose whitespace-pre-line border-l-2 border-secondary/40 pl-3 text-sm text-toned"
+              >
+                {{ auction.description }}
+              </p>
             </div>
 
             <CountdownRing

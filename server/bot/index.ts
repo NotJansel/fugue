@@ -4,6 +4,7 @@ import { cancelAuction, startAuction } from '../utils/auction'
 import { config } from '../utils/config'
 import { fetchOsuUser, osuApiReady } from '../utils/osu-api'
 import { getBalance, setBalance } from '../utils/purse-store'
+import { getTournament } from '../utils/tournament-store'
 import { bindClient, getClient } from './client'
 import { commands } from './commands'
 
@@ -71,7 +72,9 @@ async function handleAuction(interaction: ChatInputCommandInteraction): Promise<
       username: player.username,
       ppRaw: player.ppRaw,
       ppRank: player.ppRank,
-      seed: interaction.options.getInteger('seed', true)
+      seed: interaction.options.getInteger('seed', true),
+      // The command auctions any osu! user, so a description only exists for one who is registered.
+      description: getTournament().players.find(entry => entry.osuId === player.userId)?.description ?? null
     },
     interaction.options.getInteger('startingprice', true),
     interaction.options.getInteger('maxprice', true)

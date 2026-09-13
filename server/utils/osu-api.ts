@@ -65,6 +65,22 @@ interface V2Attributes {
   attributes?: { star_rating?: number }
 }
 
+interface V2Match {
+  id?: number
+  name?: string
+  start_time?: string | null
+  end_time?: string | null
+}
+
+/** A multiplayer lobby as the match history lists it: no games, no players, just when it ran. */
+export interface OsuMatch {
+  matchId: number
+  name: string
+  startedAt: number
+  /** `null` while the lobby is still open. */
+  endedAt: number | null
+}
+
 let token: { value: string, expiresAt: number } | null = null
 let pending: Promise<string | null> | null = null
 
@@ -260,6 +276,41 @@ export async function fetchBeatmap(beatmapId: string, mods: number = Mods.NONE):
       lengthSeconds: map.total_length ?? null
     }, difficultyMods)
   }
+}
+
+const toMatch = (match: V2Match | undefined): OsuMatch | null =>
+  match?.id != null && match.start_time
+    ? {
+        matchId: match.id,
+        name: match.name ?? '',
+        startedAt: Date.parse(match.start_time),
+        endedAt: match.end_time ? Date.parse(match.end_time) : null
+      }
+    : null
+
+/**
+ * One page of the match history, newest first, and the cursor to the page after it.
+ *
+ * The history is every tournament lobby on the server - around a thousand an hour - so a caller reads
+ * back only as far as it has to.
+ */
+export async function fetchMatchPage(cursor: string | null): Promise<{ matches: OsuMatch[], cursor: string | null } | null> {
+  const page = await api<{ matches?: V2Match[], cursor_string?: string | null }>(
+    `/matches?limit=50&sort=id_desc${cursor ? `&cursor_string=${encodeURIComponent(cursor)}` : ''}`
+  )
+  if (page == null) return null
+
+  return {
+    matches: (page.matches ?? []).flatMap(match => toMatch(match) ?? []),
+    cursor: page.cursor_string ?? null
+  }
+}
+
+/** One lobby, looked up again to see whether it has closed since it was listed. */
+export async function fetchMatch(matchId: number): Promise<OsuMatch | null> {
+  const found = await api<{ match?: V2Match }>(`/matches/${matchId}?limit=1`)
+
+  return toMatch(found?.match)
 }
 
 /**

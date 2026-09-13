@@ -351,6 +351,16 @@ export interface ScheduleRow {
   cells: string[][]
   /** Start as epoch millis, when the date, the time and the sheet's time zone could all be read. */
   startsAt: number | null
+  /** The osu! lobby a qualifier row was played in, once one named after its ID has been found. */
+  lobby?: ScheduleLobby | null
+}
+
+/** A qualifier lobby as osu! reports it, which beats the sheet's start time for running or over. */
+export interface ScheduleLobby {
+  matchId: number
+  startedAt: number
+  /** `null` while the lobby is still open. */
+  endedAt: number | null
 }
 
 /** One schedule from the sheet: everything under one heading, like "Qualifiers Schedule" or "FINALS". */

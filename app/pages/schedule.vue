@@ -13,8 +13,28 @@ const { state, user, isAdmin } = useDashboard()
 const { t } = useLang()
 const { dateTime, locale } = useFormat()
 
-/** How long a lobby or match counts as running after it starts. */
-const RUNNING_MS = 90 * 60_000
+/** How long a row counts as running after it starts. A qualifier lobby is over within the hour. */
+const runningMs = (section: ScheduleSection): number => (section.qualifiers ? 60 : 90) * 60_000
+
+/** An osu! lobby nobody closed stops counting as running after this, whatever osu! still says. */
+const OPEN_LOBBY_MS = 90 * 60_000
+
+/**
+ * A row's osu! lobby, when one was found, decides whether it is running or over; otherwise the start
+ * time in the sheet does.
+ */
+function statusOf(row: ScheduleRow, section: ScheduleSection, now: number, next: number | null): Status {
+  const lobby = row.lobby
+
+  if (lobby) {
+    return lobby.endedAt != null || lobby.startedAt + OPEN_LOBBY_MS <= now ? 'past' : 'live'
+  }
+
+  if (row.startsAt == null) return null
+  if (row.startsAt + runningMs(section) <= now) return 'past'
+
+  return row.startsAt <= now ? 'live' : row.startsAt === next ? 'next' : 'upcoming'
+}
 
 const schedule = computed(() => state.value?.schedule ?? null)
 const sections = computed(() => schedule.value?.sections ?? [])
@@ -35,7 +55,11 @@ onMounted(() => {
 
   // Open on the first schedule that still has something ahead in it.
   const upcoming = sections.value.findIndex(section =>
-    section.rows.some(row => row.startsAt != null && row.startsAt + RUNNING_MS > Date.now()))
+    section.rows.some((row) => {
+      const status = statusOf(row, section, Date.now(), null)
+
+      return status != null && status !== 'past'
+    }))
   if (upcoming > 0) active.value = String(upcoming)
 })
 
@@ -74,18 +98,12 @@ const entries = computed(() => {
   const next = clockNow == null
     ? null
     : current.rows
-      .map(row => row.startsAt)
-      .filter((start): start is number => start != null && start > clockNow)
+      // A lobby opened early is already running, not next.
+      .flatMap(row => row.lobby == null && row.startsAt != null && row.startsAt > clockNow ? [row.startsAt] : [])
       .sort((a, b) => a - b)[0] ?? null
 
   return current.rows.flatMap((row: ScheduleRow, index) => {
-    let status: Status = null
-
-    if (clockNow != null && row.startsAt != null) {
-      status = row.startsAt + RUNNING_MS <= clockNow
-        ? 'past'
-        : row.startsAt <= clockNow ? 'live' : row.startsAt === next ? 'next' : 'upcoming'
-    }
+    const status = clockNow == null ? null : statusOf(row, current, clockNow, next)
 
     if (hidePast.value && status === 'past') return []
 

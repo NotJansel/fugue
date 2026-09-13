@@ -1,6 +1,7 @@
 import type { ApiError, ScheduleDto, ScheduleSection } from '#shared/types'
 import { emitChange } from './bus'
 import { query } from './db'
+import { lobbyFor, startLobbyWatch, stopLobbyWatch } from './qualifier-lobbies'
 import { parseSchedule } from './schedule'
 import { fetchGrid } from './sheets'
 import { serialiser } from './store-queue'
@@ -37,7 +38,22 @@ export const scheduleUrl = (): string | null => url
 export function scheduleDto(guest: boolean): ScheduleDto | null {
   if (url == null) return null
 
-  return { url: guest ? null : url, sections, fetchedAt, error: guest ? null : failure }
+  return { url: guest ? null : url, sections: sections.map(withLobbies), fetchedAt, error: guest ? null : failure }
+}
+
+/** Qualifier rows carry the osu! lobby played under their ID, when one has turned up. */
+function withLobbies(section: ScheduleSection): ScheduleSection {
+  const id = section.columns.findIndex(column => column.role === 'id')
+  if (!section.qualifiers || id < 0) return section
+
+  return {
+    ...section,
+    rows: section.rows.map((row) => {
+      const cell = row.cells[id]?.[0]
+
+      return cell ? { ...row, lobby: lobbyFor(cell) } : row
+    })
+  }
 }
 
 /** Reads the sheet again now. Callers arriving while a read is running share that read. */
@@ -84,11 +100,15 @@ function restartRefresh(readNow: boolean): void {
 
   timer = setInterval(() => void refreshSchedule(), REFRESH_MS)
   timer.unref()
+
+  startLobbyWatch(() => sections)
 }
 
 export function stopScheduleRefresh(): void {
   if (timer) clearInterval(timer)
   timer = null
+
+  stopLobbyWatch()
 }
 
 /**

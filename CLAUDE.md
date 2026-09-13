@@ -46,7 +46,12 @@ field breaks existing deployments.
   cell), so headings of unscheduled rounds with nothing under them simply drop out; numbered slot
   headers (`S1`…`S12`) become one `list` column. `startsAt` is only set when the header names a zone
   (`Zeit (CEST)`) - an unknown zone is never guessed - and status (next/running/past) is worked out
-  in the browser only, so SSR and hydration agree.
+  in the browser only, so SSR and hydration agree. A qualifier lobby counts as running for an hour
+  after its start, a match for 90 minutes - unless `qualifier-lobbies.ts` has found the osu! lobby
+  itself (named `TP: (Qualifiers) vs (Lobby <row ID>)`), whose open/closed state then wins. The match
+  history is ~1000 lobbies an hour, so it is only paged while a qualifier row is near its start, and
+  only back to the newest match already seen; lobbies live in memory and are found again after a
+  restart.
 - The mappool stores **no scores**. Each slot names the sheet column its scores live in
   (`mappool.score_column`), and the values stay in `players.extra` where the import left them;
   per-map score and map rank are derived on every dashboard build. So re-pointing a slot at another

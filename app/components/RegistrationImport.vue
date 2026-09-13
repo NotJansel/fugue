@@ -8,7 +8,7 @@ import type { RegistrationColumnMapping, SheetPreview } from '#shared/types'
  * join the bottom of the seeding, players already on file get their name, Discord ID and description
  * refreshed, and nothing seeded or scored is touched.
  */
-const { state, api } = useDashboard()
+const { state } = useDashboard()
 const { t } = useLang()
 const { dateTime } = useFormat()
 
@@ -17,7 +17,6 @@ const sheetName = ref('')
 const enrich = ref(true)
 const preview = ref<SheetPreview | null>(null)
 const previewing = ref(false)
-const importing = ref(false)
 
 const mapping = ref<RegistrationColumnMapping>({ username: '', osuId: null, discordId: null, description: null })
 
@@ -64,22 +63,14 @@ async function runPreview() {
   }
 }
 
-async function runImport() {
-  importing.value = true
+const { progress, busy, start } = useBackgroundImport('/api/sheet/register')
 
-  try {
-    await api('/api/sheet/register', {
-      url: url.value,
-      sheetName: sheetName.value || null,
-      mapping: mapping.value,
-      enrich: enrich.value
-    })
-  } finally {
-    importing.value = false
-  }
-}
-
-const progress = computed(() => state.value?.importProgress ?? null)
+const runImport = () => start({
+  url: url.value,
+  sheetName: sheetName.value || null,
+  mapping: mapping.value,
+  enrich: enrich.value
+})
 </script>
 
 <template>
@@ -184,7 +175,7 @@ const progress = computed(() => state.value?.importProgress ?? null)
           <div class="flex flex-wrap items-center gap-3">
             <UButton
               icon="i-lucide-user-plus"
-              :loading="importing"
+              :loading="busy"
               :disabled="!mapping.username"
               @click="runImport"
             >
@@ -194,7 +185,7 @@ const progress = computed(() => state.value?.importProgress ?? null)
             <span
               v-if="progress"
               class="text-xs text-muted tnum"
-            >{{ t('setup.sheet.importing', { ...progress }) }}</span>
+            >{{ t(progress.phase === 'discord' ? 'setup.sheet.matchingDiscord' : 'setup.sheet.importing', { ...progress }) }}</span>
           </div>
 
           <UProgress

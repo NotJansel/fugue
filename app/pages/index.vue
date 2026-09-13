@@ -207,7 +207,7 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
       v-if="state?.importProgress"
       class="text-center text-sm text-muted"
     >
-      {{ t('setup.sheet.importing', { ...state.importProgress }) }}
+      {{ t(state.importProgress.phase === 'discord' ? 'setup.sheet.matchingDiscord' : 'setup.sheet.importing', { ...state.importProgress }) }}
     </p>
   </div>
 </template>

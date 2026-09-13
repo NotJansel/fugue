@@ -36,6 +36,17 @@ field breaks existing deployments.
   match existing players by osu! ID and then by name, since an unenriched import only has a `name:`
   placeholder. A `description` of `undefined` from `toPlayers` means "no column mapped - keep the
   one on file"; `null` means the cell was blank.
+- Player imports **run in the background** (`startImport` in `import-progress.ts`). A full
+  registration list takes minutes of osu! and Discord lookups, far past a reverse proxy's timeout (a
+  504), so the route reads and checks the sheet, answers `ok.importStarted`, and the rest reports
+  through `importProgress` and `importOutcome` over SSE. One import at a time; a second gets a 409.
+- The **schedule** is read, not imported. `schedule-store.ts` persists only the link (a `schedule`
+  row in `sheet_config`), re-reads the tab at boot and every 5 minutes, and keeps the last good
+  sections up when a read fails. `schedule.ts` splits a tab into sections by heading rows (one short
+  cell), so headings of unscheduled rounds with nothing under them simply drop out; numbered slot
+  headers (`S1`…`S12`) become one `list` column. `startsAt` is only set when the header names a zone
+  (`Zeit (CEST)`) - an unknown zone is never guessed - and status (next/running/past) is worked out
+  in the browser only, so SSR and hydration agree.
 - The mappool stores **no scores**. Each slot names the sheet column its scores live in
   (`mappool.score_column`), and the values stay in `players.extra` where the import left them;
   per-map score and map rank are derived on every dashboard build. So re-pointing a slot at another

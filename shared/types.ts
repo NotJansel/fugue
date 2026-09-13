@@ -337,10 +337,62 @@ export interface ConfigDto {
   botConnected: boolean
 }
 
+/**
+ * One column of a published schedule. `list` gathers numbered slot columns - S1 to S12, Team 1 and
+ * Team 2 - into one, since they read as a list of names rather than as twelve columns.
+ */
+export interface ScheduleColumn {
+  label: string
+  role: 'id' | 'date' | 'time' | 'text' | 'list'
+}
+
+export interface ScheduleRow {
+  /** One entry per column: a `list` column's names, anything else as zero or one string. */
+  cells: string[][]
+  /** Start as epoch millis, when the date, the time and the sheet's time zone could all be read. */
+  startsAt: number | null
+}
+
+/** One schedule from the sheet: everything under one heading, like "Qualifiers Schedule" or "FINALS". */
+export interface ScheduleSection {
+  title: string
+  /** Qualifier lobbies rather than matches, going by the heading. */
+  qualifiers: boolean
+  columns: ScheduleColumn[]
+  /** In start order; rows whose start could not be read follow in sheet order. */
+  rows: ScheduleRow[]
+}
+
+/** The published schedule. `null` in `DashboardState` while no schedule sheet is set. */
+export interface ScheduleDto {
+  /** The sheet link - `null` for a guest, like every other sheet link. */
+  url: string | null
+  sections: ScheduleSection[]
+  fetchedAt: number | null
+  /** Why the last refresh failed; the sections are then still the last good ones. `null` for a guest. */
+  error: ApiError | null
+}
+
+/** Which lookup a running import is in: osu! players first, then Discord handles. */
+export type ImportPhase = 'osu' | 'discord'
+
 /** Progress of a running sheet import. Rendered by the client, so it carries numbers not prose. */
 export interface ImportProgress {
   done: number
   total: number
+  phase: ImportPhase
+}
+
+/**
+ * How the last import ended. Imports run after their request has been answered, so this is how the
+ * result reaches whoever started one - `finishedAt` changing is the signal.
+ */
+export interface ImportOutcome {
+  ok: boolean
+  message: string
+  code: string
+  args: Record<string, string>
+  finishedAt: number
 }
 
 /**
@@ -363,6 +415,8 @@ export interface DashboardState {
   sheet: SheetImportConfig | null
   registrationSheet: RegistrationSheetConfig | null
   importProgress: ImportProgress | null
+  importOutcome: ImportOutcome | null
+  schedule: ScheduleDto | null
   poolRemaining: number
 }
 

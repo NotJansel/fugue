@@ -91,6 +91,7 @@ const setDiscordId = (osuId: string, discordId: string) =>
         <RegistrationImport />
         <QualifierImport />
         <MappoolImport />
+        <ScheduleImport />
 
         <UCard variant="subtle">
           <template #header>

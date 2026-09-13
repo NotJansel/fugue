@@ -8,7 +8,7 @@ import type { ColumnMapping, SheetPreview } from '#shared/types'
  * is, and only the second press writes anything. Re-importing later keeps manual Discord links,
  * captain overrides and everything already bought at auction.
  */
-const { state, api } = useDashboard()
+const { state } = useDashboard()
 const { t } = useLang()
 const { dateTime } = useFormat()
 
@@ -17,7 +17,6 @@ const sheetName = ref('')
 const enrich = ref(true)
 const preview = ref<SheetPreview | null>(null)
 const previewing = ref(false)
-const importing = ref(false)
 
 const mapping = ref<ColumnMapping>({ username: '', osuId: null, discordId: null, score: null, seed: null })
 
@@ -65,22 +64,14 @@ async function runPreview() {
   }
 }
 
-async function runImport() {
-  importing.value = true
+const { progress, busy, start } = useBackgroundImport('/api/sheet/import')
 
-  try {
-    await api('/api/sheet/import', {
-      url: url.value,
-      sheetName: sheetName.value || null,
-      mapping: mapping.value,
-      enrich: enrich.value
-    })
-  } finally {
-    importing.value = false
-  }
-}
-
-const progress = computed(() => state.value?.importProgress ?? null)
+const runImport = () => start({
+  url: url.value,
+  sheetName: sheetName.value || null,
+  mapping: mapping.value,
+  enrich: enrich.value
+})
 </script>
 
 <template>
@@ -185,7 +176,7 @@ const progress = computed(() => state.value?.importProgress ?? null)
           <div class="flex flex-wrap items-center gap-3">
             <UButton
               icon="i-lucide-download"
-              :loading="importing"
+              :loading="busy"
               :disabled="!mapping.username"
               @click="runImport"
             >

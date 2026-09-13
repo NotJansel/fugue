@@ -2,9 +2,10 @@ import type { DashboardState, PlayerDto, TeamDto, UserSession } from '#shared/ty
 import { auctionSnapshot } from './auction'
 import { config, osuOauthConfigured } from './config'
 import { botConnected } from '../bot/client'
-import { currentImportProgress } from './import-progress'
+import { currentImportProgress, lastImportOutcome } from './import-progress'
 import { allOsuLinks } from './osu-link-store'
 import { getAllBalances, getAllHolds } from './purse-store'
+import { scheduleDto } from './schedule-store'
 import {
   captainCount,
   captains,
@@ -157,6 +158,8 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     sheet: guest ? null : tournament.sheet ?? null,
     registrationSheet: guest ? null : tournament.registrationSheet ?? null,
     importProgress: currentImportProgress(),
+    importOutcome: guest ? null : lastImportOutcome(),
+    schedule: scheduleDto(guest),
     poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
   }
 }

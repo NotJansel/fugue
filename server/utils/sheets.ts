@@ -217,13 +217,19 @@ export function toCsvUrl(input: string, sheetName?: string | null): string | nul
   return `${base}/export?format=csv`
 }
 
+/** One row of the raw grid, and the row number Google Sheets shows beside it. */
+export interface GridRow {
+  row: string[]
+  number: number
+}
+
 /**
- * Downloads and parses the sheet.
+ * Downloads the sheet as its raw grid: every non-blank row, with no idea yet which one is a header.
  *
  * Uses the public CSV export endpoints rather than the Sheets API, so no Google credentials are
  * involved - the sheet just has to be shared as "anyone with the link can view".
  */
-export async function fetchSheet(input: string, sheetName?: string | null): Promise<SheetData> {
+export async function fetchGrid(input: string, sheetName?: string | null): Promise<GridRow[]> {
   const url = toCsvUrl(input, sheetName)
 
   if (url == null) {
@@ -273,6 +279,13 @@ export async function fetchSheet(input: string, sheetName?: string | null): Prom
     .filter(({ row }) => row.some(cell => cell.trim() !== ''))
 
   if (numbered.length === 0) throw apiError(400, 'The sheet appears to be empty.', 'err.sheet.empty')
+
+  return numbered
+}
+
+/** Downloads and parses the sheet, reading its first row - or two, under a spanning heading - as the header. */
+export async function fetchSheet(input: string, sheetName?: string | null): Promise<SheetData> {
+  const numbered = await fetchGrid(input, sheetName)
 
   const first = numbered[0]!.row
   const second = numbered[1]?.row

@@ -116,6 +116,16 @@ with osu! still links it. A Discord ID already on file is never replaced. A late
 still contains. The description shows on the seeding list, on the dashboard while the player is up
 for auction, and on the Discord auction card.
 
+## Schedule
+
+Paste the link to the schedule tab (the address bar link, which names the tab) into **Schedule
+sheet** in the Setup tab, and a **Schedule** page appears. Every schedule on that tab is shown - the
+qualifier lobbies, and each round's matches once the organisers fill them in - found by the heading
+over it and the header row under it. Numbered slot columns (`S1` to `S12`) show as one list of names,
+start times are converted to each viewer's time zone when the header names the sheet's (`Zeit
+(CEST)`), and a signed-in player's own lobby is highlighted. The website re-reads the sheet every 5
+minutes on its own; **Refresh now** skips the wait.
+
 ## Captains and seeding
 
 The number of captains follows the field size: `qualified ÷ players per team`, rounded down, so 34

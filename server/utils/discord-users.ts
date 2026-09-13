@@ -11,10 +11,16 @@ import { config } from './config'
  * or nickname exactly one member has. The nearest name is never taken instead. Anything that can't be matched, including everyone while the bot is offline or
  * `GUILD_ID` is unset, keeps its username and no ID; signing in with osu! still links the account.
  */
-export async function resolveDiscordUsernames(players: TournamentPlayer[]): Promise<TournamentPlayer[]> {
-  const wanted = [...new Set(
-    players.flatMap(player => player.discordUsername && !player.discordId ? [player.discordUsername] : [])
-  )]
+export async function resolveDiscordUsernames(
+  players: TournamentPlayer[],
+  skip: Set<string> = new Set(),
+  onProgress: (done: number, total: number) => void = () => {}
+): Promise<TournamentPlayer[]> {
+  const wanted = [...new Set(players.flatMap(player =>
+    player.discordUsername && !player.discordId && !skip.has(player.discordUsername)
+      ? [player.discordUsername]
+      : []
+  ))]
 
   if (wanted.length === 0) return players
 
@@ -36,7 +42,9 @@ export async function resolveDiscordUsernames(players: TournamentPlayer[]): Prom
 
   const ids = new Map<string, string>()
 
-  for (const username of wanted) {
+  onProgress(0, wanted.length)
+
+  for (const [index, username] of wanted.entries()) {
     try {
       const found = [...(await guild.members.search({ query: username, limit: 10 })).values()]
 
@@ -48,6 +56,7 @@ export async function resolveDiscordUsernames(players: TournamentPlayer[]): Prom
       const member = byUsername ?? (byDisplayName.length === 1 ? byDisplayName[0] : undefined)
 
       if (member) ids.set(username, member.id)
+      onProgress(index + 1, wanted.length)
     } catch (error) {
       console.error('[discord] Member search failed - leaving the remaining usernames unmatched:', error)
 

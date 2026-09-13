@@ -7,6 +7,7 @@ import { importLegacyData } from '../utils/legacy-import'
 import { checkOsuApi } from '../utils/osu-api'
 import { loadOsuLinks } from '../utils/osu-link-store'
 import { loadPurses } from '../utils/purse-store'
+import { loadSchedule, stopScheduleRefresh } from '../utils/schedule-store'
 import { loadTournament } from '../utils/tournament-store'
 
 /**
@@ -25,7 +26,7 @@ export default defineNitroPlugin((nitro) => {
 
   const ready = migrate()
     .then(importLegacyData)
-    .then(() => Promise.all([loadTournament(), loadPurses(), loadOsuLinks()]))
+    .then(() => Promise.all([loadTournament(), loadPurses(), loadOsuLinks(), loadSchedule()]))
     .then(() => Promise.all([startBot(), checkOsuApi()]))
     .catch((error) => {
       console.error('[boot] Startup failed:', error)
@@ -38,6 +39,7 @@ export default defineNitroPlugin((nitro) => {
 
   nitro.hooks.hook('close', async () => {
     shutdownAuction()
+    stopScheduleRefresh()
     await ready.catch(() => {})
     await stopBot()
     await closeDatabase()

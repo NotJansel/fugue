@@ -13,8 +13,7 @@
 export type Lang = 'en' | 'de'
 
 const en = {
-  'app.title': 'Auction House',
-  'app.subtitle': 'osu! tournament auctions',
+  'app.title': 'Trinitas Proelium',
   'app.language': 'Language',
 
   'nav.auction': 'Auction',
@@ -351,8 +350,7 @@ const en = {
 }
 
 const de: Record<keyof typeof en, string> = {
-  'app.title': 'Auktionshaus',
-  'app.subtitle': 'osu!-Turnierauktionen',
+  'app.title': 'Trinitas Proelium',
   'app.language': 'Sprache',
 
   'nav.auction': 'Auktion',

@@ -38,10 +38,7 @@ const warnings = computed(() => state.value?.warnings ?? [])
           class="flex items-center gap-2.5 rounded-lg p-1 -ms-1 outline-primary/40 focus-visible:outline-2"
         >
           <AppLogo class="size-8 shrink-0" />
-          <span class="hidden lg:flex flex-col leading-tight">
-            <span class="font-display text-base font-semibold">{{ t('app.title') }}</span>
-            <span class="text-[11px] uppercase tracking-[0.14em] text-muted">{{ t('app.subtitle') }}</span>
-          </span>
+          <span class="hidden lg:block font-display text-base font-semibold leading-tight">{{ t('app.title') }}</span>
         </NuxtLink>
       </template>
 

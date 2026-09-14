@@ -17,10 +17,11 @@ onBeforeUnmount(() => disconnect?.())
 useHead({
   htmlAttrs: { lang },
   meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }],
-  // SVG only: the mark is drawn from the theme's own colours, and browsers probe `/favicon.ico` on
-  // their own - leaving the starter's Nuxt logo there would show it in tabs that fall back.
+  // The tournament's own mark at tab size. Browsers probe `/favicon.ico` on their own - leaving the
+  // starter's Nuxt logo there would show it in tabs that fall back.
   link: [
-    { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+    { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+    { rel: 'apple-touch-icon', href: '/favicon.png' },
     // Every page opens on a heading in the display serif, and the stylesheet only reveals the font
     // once it has parsed the `@font-face`. Weight 600 is the brand line alone, so it can wait.
     {
@@ -35,7 +36,6 @@ useHead({
 
 useSeoMeta({
   title: () => t('app.title'),
-  description: () => t('app.subtitle'),
   robots: 'noindex'
 })
 </script>

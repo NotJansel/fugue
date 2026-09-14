@@ -39,6 +39,8 @@ const en = {
   'schedule.live': 'Running',
   'schedule.stale': 'The last refresh from the sheet failed, so this may be out of date.',
   'schedule.allPast': 'Everything in this schedule is over.',
+  'schedule.scheduled': '{count} players have scheduled a lobby',
+  'schedule.scheduledOf': '{count} of {total} players have scheduled a lobby',
 
   'conn.live': 'Live',
   'conn.connecting': 'Connecting…',
@@ -375,6 +377,8 @@ const de: Record<keyof typeof en, string> = {
   'schedule.live': 'Läuft',
   'schedule.stale': 'Das letzte Neuladen aus der Tabelle ist fehlgeschlagen, der Stand kann veraltet sein.',
   'schedule.allPast': 'Alles in diesem Zeitplan ist vorbei.',
+  'schedule.scheduled': '{count} Spieler haben eine Lobby eingetragen',
+  'schedule.scheduledOf': '{count} von {total} Spielern haben eine Lobby eingetragen',
 
   'conn.live': 'Live',
   'conn.connecting': 'Verbinde…',

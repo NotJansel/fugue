@@ -9,7 +9,7 @@ import type { ScheduleRow, ScheduleSection } from '#shared/types'
  * zone it writes in; whether a row is next, running or over is only worked out in the browser, against
  * its own clock.
  */
-const { state, user, isAdmin } = useDashboard()
+const { state, user, isAdmin, players } = useDashboard()
 const { t } = useLang()
 const { dateTime, locale } = useFormat()
 
@@ -75,6 +75,29 @@ const section = computed<ScheduleSection | null>(() =>
 
 const me = computed(() => user.value?.osuUsername?.toLowerCase() ?? null)
 
+/**
+ * How many different players have put their name down in this schedule's slot columns. A name
+ * written into two lobbies is still one player, and the comparison ignores case the way the
+ * highlight does. Only meaningful for the qualifiers, where the slots hold players rather than teams.
+ */
+const scheduledPlayers = computed(() => {
+  const current = section.value
+  if (!current?.qualifiers) return null
+
+  const lists = current.columns.flatMap((column, at) => column.role === 'list' ? [at] : [])
+  const names = new Set<string>()
+
+  for (const row of current.rows) {
+    for (const at of lists) {
+      for (const name of row.cells[at] ?? []) {
+        if (name.trim()) names.add(name.trim().toLowerCase())
+      }
+    }
+  }
+
+  return names.size
+})
+
 const startFormat = computed(() => new Intl.DateTimeFormat(locale.value, {
   weekday: 'short',
   day: '2-digit',
@@ -137,6 +160,14 @@ const entries = computed(() => {
           class="text-sm text-muted"
         >
           {{ t('schedule.updated', { when: dateTime(schedule.fetchedAt) }) }}
+        </p>
+        <p
+          v-if="scheduledPlayers != null"
+          class="text-sm text-muted tnum"
+        >
+          {{ players.length
+            ? t('schedule.scheduledOf', { count: scheduledPlayers, total: players.length })
+            : t('schedule.scheduled', { count: scheduledPlayers }) }}
         </p>
       </div>
 

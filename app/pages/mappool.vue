@@ -328,6 +328,16 @@ const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.
                     class="ms-1 text-xs"
                     :class="cell.rank === 1 ? 'text-secondary' : 'text-muted'"
                   >#{{ cell.rank }}</span>
+                  <UBadge
+                    v-if="cell.mods"
+                    color="primary"
+                    variant="subtle"
+                    size="xs"
+                    class="ms-1 align-middle"
+                    :title="cell.multiplier !== 1 ? `× ${number(cell.multiplier, 2)}` : undefined"
+                  >
+                    {{ cell.mods }}<template v-if="cell.multiplier !== 1"> ×{{ number(cell.multiplier, 2) }}</template>
+                  </UBadge>
                 </span>
                 <span
                   v-else

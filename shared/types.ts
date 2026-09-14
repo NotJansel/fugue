@@ -93,6 +93,10 @@ export interface MapScore {
   z: number | null
   /** Where the score came from: the osu! lobby it was set in, or the qualifier sheet's column. */
   source: 'lobby' | 'sheet'
+  /** The player's own mods on the run that counts, beyond what the slot forces - what a freemod slot shows. */
+  mods: string
+  /** The tournament's multiplier for those mods, already applied to `value`. 1 when none applies. */
+  multiplier: number
 }
 
 /**
@@ -114,6 +118,11 @@ export interface LobbyScore {
   score: number
   /** Mods the game was played with plus the player's own, canonical ("HDDT"), empty for none. */
   mods: string
+  /**
+   * The player's own mods beyond the game's, NF left out - what they chose on a freemod slot and
+   * what a score multiplier goes by. Canonical, empty for none.
+   */
+  ownMods: string
   passed: boolean
   /** When the game started, epoch millis. */
   playedAt: number
@@ -243,6 +252,12 @@ export interface TournamentState {
    * half the starting price. The ceiling and the increments are unchanged by it.
    */
   secondRun: boolean
+  /**
+   * Score multipliers on freemod slots, by the player's own mod combination in canonical spelling:
+   * `{ EZ: 1.8, EZHD: 2 }`. Applied to the raw score osu! reports, on top of the game's own; a
+   * combination not listed counts as written.
+   */
+  modMultipliers: Record<string, number>
   /** Set to pin the captain count instead of deriving it from `teamSize`. */
   captainCountOverride?: number | null
   seedingLocked: boolean
@@ -393,6 +408,7 @@ export interface ConfigDto {
   minBidIncrement: number
   maxBidIncrement: number
   secondRun: boolean
+  modMultipliers: Record<string, number>
   /** What an auction started right now would open at - halved while `secondRun` is on. */
   startingBid: number
   seedingLocked: boolean

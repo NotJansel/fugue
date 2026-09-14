@@ -117,8 +117,12 @@ const schema = `
     captain_count_override  integer,
     seeding_locked          boolean NOT NULL,
     default_starting_bid    integer NOT NULL,
-    default_max_bid         integer NOT NULL
+    default_max_bid         integer NOT NULL,
+    -- Freemod score multipliers by mod combination, e.g. {"EZ": 1.8}.
+    mod_multipliers         jsonb NOT NULL DEFAULT '{}'::jsonb
   );
+
+  ALTER TABLE tournament_settings ADD COLUMN IF NOT EXISTS mod_multipliers jsonb NOT NULL DEFAULT '{}'::jsonb;
 
   CREATE TABLE IF NOT EXISTS players (
     osu_id        text PRIMARY KEY,
@@ -217,10 +221,15 @@ const schema = `
     username    text NOT NULL,
     score       bigint NOT NULL,
     mods        text NOT NULL DEFAULT '',
+    -- The player's own mods beyond the game's. NULL on rows written before the column existed,
+    -- which is what tells the store to read that lobby again.
+    own_mods    text,
     passed      boolean NOT NULL,
     played_at   bigint NOT NULL,
     PRIMARY KEY (game_id, user_id)
   );
+
+  ALTER TABLE lobby_scores ADD COLUMN IF NOT EXISTS own_mods text;
 
   CREATE TABLE IF NOT EXISTS osu_links (
     discord_id    text PRIMARY KEY,

@@ -15,6 +15,7 @@ import type {
 } from '#shared/types'
 import { emitChange } from './bus'
 import { query, valuesList, withTransaction } from './db'
+import { formatMods, parseMods } from './mods'
 import { serialiser } from './store-queue'
 import { captainForDiscordId, emptyTournament, seedingByZSum } from './tournament-model'
 
@@ -46,6 +47,7 @@ interface SettingsRow {
   seeding_locked: boolean
   default_starting_bid: number
   default_max_bid: number
+  mod_multipliers: Record<string, number> | null
 }
 
 interface PlayerRow {
@@ -130,6 +132,7 @@ export async function loadTournament(): Promise<void> {
     minBidIncrement: row?.min_bid_increment ?? defaults.minBidIncrement,
     maxBidIncrement: row?.max_bid_increment ?? defaults.maxBidIncrement,
     secondRun: row?.second_run ?? defaults.secondRun,
+    modMultipliers: row?.mod_multipliers ?? defaults.modMultipliers,
     captainCountOverride: row?.captain_count_override ?? null,
     seedingLocked: row?.seeding_locked ?? defaults.seedingLocked,
     defaultStartingBid: row?.default_starting_bid ?? defaults.defaultStartingBid,
@@ -204,8 +207,8 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   await client.query(
     `INSERT INTO tournament_settings (
        id, team_size, min_team_size, field_size, min_bid_increment, max_bid_increment, second_run,
-       captain_count_override, seeding_locked, default_starting_bid, default_max_bid
-     ) VALUES (true, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       captain_count_override, seeding_locked, default_starting_bid, default_max_bid, mod_multipliers
+     ) VALUES (true, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (id) DO UPDATE SET
        team_size = EXCLUDED.team_size,
        min_team_size = EXCLUDED.min_team_size,
@@ -216,11 +219,12 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
        captain_count_override = EXCLUDED.captain_count_override,
        seeding_locked = EXCLUDED.seeding_locked,
        default_starting_bid = EXCLUDED.default_starting_bid,
-       default_max_bid = EXCLUDED.default_max_bid`,
+       default_max_bid = EXCLUDED.default_max_bid,
+       mod_multipliers = EXCLUDED.mod_multipliers`,
     [
       next.teamSize, next.minTeamSize, next.fieldSize ?? null, next.minBidIncrement,
       next.maxBidIncrement, next.secondRun, next.captainCountOverride ?? null, next.seedingLocked,
-      next.defaultStartingBid, next.defaultMaxBid
+      next.defaultStartingBid, next.defaultMaxBid, JSON.stringify(next.modMultipliers ?? {})
     ]
   )
 
@@ -594,11 +598,31 @@ export interface ConfigPatch {
   minBidIncrement?: number | null
   maxBidIncrement?: number | null
   secondRun?: boolean | null
+  /** The whole table, replaced as one - `null` leaves it as it was. */
+  modMultipliers?: Record<string, number> | null
+}
+
+/**
+ * Tidies a multiplier table as typed: every key spelt canonically so `HDEZ` and `EZHD` land on one
+ * rule, and only factors that would change a score kept - a factor of 1 is the same as no rule.
+ */
+function tidyMultipliers(typed: Record<string, number>): Record<string, number> {
+  const tidied: Record<string, number> = {}
+
+  for (const [mods, factor] of Object.entries(typed)) {
+    const key = formatMods(parseMods(mods))
+    const value = Number(factor)
+
+    if (key !== '' && Number.isFinite(value) && value > 0 && value !== 1) tidied[key] = value
+  }
+
+  return tidied
 }
 
 export function updateTournamentConfig(patch: ConfigPatch): Promise<TournamentState> {
   return update(current => ({
     ...current,
+    modMultipliers: patch.modMultipliers != null ? tidyMultipliers(patch.modMultipliers) : current.modMultipliers,
     teamSize: patch.teamSize != null ? Math.max(patch.teamSize, 1) : current.teamSize,
     minTeamSize: patch.minTeamSize != null ? Math.max(patch.minTeamSize, 0) : current.minTeamSize,
     fieldSize: patch.clearFieldSize

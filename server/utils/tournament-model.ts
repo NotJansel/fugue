@@ -6,7 +6,7 @@ import type {
   TournamentState,
   TournamentWarning
 } from '#shared/types'
-import { difficultyMask, parseMods } from './mods'
+import { difficultyMask, formatMods, parseMods } from './mods'
 
 export const DEFAULT_TEAM_SIZE = 4
 
@@ -21,6 +21,7 @@ export const emptyTournament = (): TournamentState => ({
   minBidIncrement: 1,
   maxBidIncrement: 0,
   secondRun: false,
+  modMultipliers: {},
   teamSize: DEFAULT_TEAM_SIZE,
   captainCountOverride: null,
   seedingLocked: false,
@@ -158,6 +159,23 @@ export function qualifierMaps(state: TournamentState): QualifierMap[] {
   return named.length > 0 ? named : state.mappool
 }
 
+/**
+ * Whether a slot lets players pick their own mods: the free-mod bracket, and a tiebreaker, which is
+ * played the same way. These are the slots a score multiplier applies on.
+ */
+export const isFreeMod = (map: QualifierMap): boolean => /^(fm|tb)/i.test(map.label.trim())
+
+/**
+ * The multiplier a tournament gives a mod combination on a freemod slot, looked up under its
+ * canonical spelling so `HDEZ` and `EZHD` are the same rule. 1 when none is set.
+ */
+export function modMultiplier(state: TournamentState, ownMods: string): number {
+  const key = formatMods(parseMods(ownMods))
+  const factor = key === '' ? undefined : state.modMultipliers?.[key]
+
+  return factor != null && factor > 0 ? factor : 1
+}
+
 /** A player's standing after qualifiers: the Z-sum the seeding goes by, and the raw total behind it. */
 export interface QualifierStanding {
   zSum: number
@@ -187,9 +205,11 @@ function deviation(values: number[]): { mean: number, sd: number } | null {
  *
  * Each slot's scores come from the lobbies first: every game played on the slot's beatmap, in any
  * lobby on file, and a player's *best* of them - each player has two runs, and only the better one
- * counts, whichever run it was. A slot no lobby has played yet falls back to the sheet column it is
- * bound to, so a tournament that only ever imports a sheet reads exactly as before. A game on a
- * beatmap outside the qualifier pool - a warm-up - matches no slot and is ignored.
+ * counts, whichever run it was. On a freemod slot the tournament's multiplier for the player's own
+ * mods is applied first, so a 1.8x EZ run is compared - and ranked - at 1.8 times what osu! reported.
+ * A slot no lobby has played yet falls back to the sheet column it is bound to, so a tournament that
+ * only ever imports a sheet reads exactly as before. A game on a beatmap outside the qualifier pool -
+ * a warm-up - matches no slot and is ignored.
  *
  * Standings follow the Z-sum method: on every qualifier slot, each player's score is expressed as
  * the number of standard deviations above or below the mean across the field, and those are summed.
@@ -232,6 +252,8 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
   interface Entry {
     value: number
     display: string
+    mods: string
+    multiplier: number
   }
 
   const perMap = new Map<string, { source: MapScore['source'], values: Map<string, Entry> }>()
@@ -244,8 +266,13 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
     let entry = perMap.get(slot.id)
     if (!entry) perMap.set(slot.id, entry = { source: 'lobby', values: new Map() })
 
+    const multiplier = isFreeMod(slot) ? modMultiplier(state, score.ownMods) : 1
+    const value = score.score * multiplier
+
     const best = entry.values.get(osuId)
-    if (!best || score.score > best.value) entry.values.set(osuId, { value: score.score, display: String(score.score) })
+    if (!best || value > best.value) {
+      entry.values.set(osuId, { value, display: String(Math.round(value)), mods: score.ownMods, multiplier })
+    }
   }
 
   for (const map of state.mappool) {
@@ -259,7 +286,7 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
       if (!raw) continue
 
       const value = parseSheetNumber(raw)
-      if (value != null) values.set(player.osuId, { value, display: raw })
+      if (value != null) values.set(player.osuId, { value, display: raw, mods: '', multiplier: 1 })
     }
 
     if (values.size > 0) perMap.set(map.id, { source: 'sheet', values })
@@ -286,7 +313,15 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
       previousRank = rank
 
       scores[osuId] ??= {}
-      scores[osuId]![mapId] = { value: entry.value, display: entry.display, rank, z: zOf(entry.value), source }
+      scores[osuId]![mapId] = {
+        value: entry.value,
+        display: entry.display,
+        rank,
+        z: zOf(entry.value),
+        source,
+        mods: entry.mods,
+        multiplier: entry.multiplier
+      }
     })
 
     if (!qualifiers.has(mapId)) continue

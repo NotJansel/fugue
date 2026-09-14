@@ -39,11 +39,19 @@ interface ScoreRow {
   username: string
   score: number
   mods: string
+  own_mods: string | null
   passed: boolean
   played_at: number
 }
 
 export async function loadLobbies(): Promise<void> {
+  // Scores written before the player's own mods were kept have no way of getting them but a fresh
+  // read of their lobby, and a lobby with no watermark is read again in full on the next poll.
+  await query(
+    `UPDATE qualifier_lobbies SET latest_event_id = NULL
+     WHERE match_id IN (SELECT DISTINCT match_id FROM lobby_scores WHERE own_mods IS NULL)`
+  )
+
   const [lobbyRows, scoreRows] = await Promise.all([
     query<LobbyRow>('SELECT * FROM qualifier_lobbies'),
     query<ScoreRow>('SELECT * FROM lobby_scores')
@@ -71,6 +79,7 @@ export async function loadLobbies(): Promise<void> {
       username: row.username,
       score: row.score,
       mods: row.mods,
+      ownMods: row.own_mods ?? '',
       passed: row.passed,
       playedAt: row.played_at
     })
@@ -140,6 +149,7 @@ export function recordScores(incoming: LobbyScore[]): Promise<boolean> {
         || known.score !== score.score
         || known.passed !== score.passed
         || known.beatmapId !== score.beatmapId
+        || known.ownMods !== score.ownMods
     })
 
     if (changed.length === 0) return false
@@ -148,13 +158,13 @@ export function recordScores(incoming: LobbyScore[]): Promise<boolean> {
     // saved - the constraint is there to take the scores with a lobby that is removed.
     const rows = valuesList(changed, (score: LobbyScore) => [
       score.gameId, score.osuId, score.matchId, score.beatmapId, score.username, score.score,
-      score.mods, score.passed, score.playedAt
+      score.mods, score.ownMods, score.passed, score.playedAt
     ])
     if (!rows) return false
 
     await query(
       `INSERT INTO lobby_scores (
-         game_id, user_id, match_id, beatmap_id, username, score, mods, passed, played_at
+         game_id, user_id, match_id, beatmap_id, username, score, mods, own_mods, passed, played_at
        ) VALUES ${rows.text}
        ON CONFLICT (game_id, user_id) DO UPDATE SET
          match_id = EXCLUDED.match_id,
@@ -162,6 +172,7 @@ export function recordScores(incoming: LobbyScore[]): Promise<boolean> {
          username = EXCLUDED.username,
          score = EXCLUDED.score,
          mods = EXCLUDED.mods,
+         own_mods = EXCLUDED.own_mods,
          passed = EXCLUDED.passed,
          played_at = EXCLUDED.played_at`,
       rows.values

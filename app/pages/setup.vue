@@ -14,6 +14,17 @@ const defaultMaxBid = ref(0)
 const minBidIncrement = ref(1)
 const maxBidIncrement = ref(0)
 
+/** The freemod multiplier table as rows, so a combination can be typed before its factor is. */
+const multipliers = ref<{ mods: string, factor: number }[]>([])
+
+const addMultiplier = () => {
+  multipliers.value = [...multipliers.value, { mods: '', factor: 1 }]
+}
+
+const removeMultiplier = (index: number) => {
+  multipliers.value = multipliers.value.filter((_, at) => at !== index)
+}
+
 // The form follows the server until it is saved, so a second organiser's change is never overwritten
 // by a stale field left open in this tab.
 watchEffect(() => {
@@ -30,6 +41,7 @@ watchEffect(() => {
   defaultMaxBid.value = config.defaultMaxBid
   minBidIncrement.value = config.minBidIncrement
   maxBidIncrement.value = config.maxBidIncrement
+  multipliers.value = Object.entries(config.modMultipliers ?? {}).map(([mods, factor]) => ({ mods, factor }))
 })
 
 const explainer = computed(() => t('setup.format.explainer', {
@@ -49,7 +61,11 @@ const saveFormat = () => api('/api/config', {
   defaultStartingBid: defaultStartingBid.value,
   defaultMaxBid: defaultMaxBid.value,
   minBidIncrement: minBidIncrement.value,
-  maxBidIncrement: maxBidIncrement.value
+  maxBidIncrement: maxBidIncrement.value,
+  // As an object, the way it is stored; the server spells the keys canonically and drops blanks.
+  modMultipliers: Object.fromEntries(
+    multipliers.value.filter(row => row.mods.trim() !== '').map(row => [row.mods.trim().toUpperCase(), row.factor])
+  )
 })
 
 const bulkPurse = ref(0)
@@ -196,6 +212,51 @@ const setDiscordId = (osuId: string, discordId: string) =>
                   :placeholder="t('setup.format.maxStep')"
                   class="w-36"
                 />
+              </div>
+            </UFormField>
+
+            <UFormField
+              :label="t('setup.format.multipliers')"
+              :help="t('setup.format.multipliersHint')"
+            >
+              <div class="space-y-2">
+                <div
+                  v-for="(row, index) in multipliers"
+                  :key="index"
+                  class="flex flex-wrap items-center gap-2"
+                >
+                  <UInput
+                    v-model="row.mods"
+                    :placeholder="t('setup.format.multiplierMods')"
+                    class="w-28"
+                    @update:model-value="row.mods = String($event).toUpperCase()"
+                  />
+                  <span class="text-muted">×</span>
+                  <UInputNumber
+                    v-model="row.factor"
+                    :min="0"
+                    :step="0.05"
+                    :placeholder="t('setup.format.multiplierFactor')"
+                    class="w-32"
+                  />
+                  <UButton
+                    icon="i-lucide-x"
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    :aria-label="t('common.remove')"
+                    @click="removeMultiplier(index)"
+                  />
+                </div>
+                <UButton
+                  icon="i-lucide-plus"
+                  size="xs"
+                  color="neutral"
+                  variant="subtle"
+                  @click="addMultiplier"
+                >
+                  {{ t('setup.format.addMultiplier') }}
+                </UButton>
               </div>
             </UFormField>
 

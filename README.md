@@ -139,6 +139,10 @@ the same map is in the pool twice), so warm-ups are ignored. Each player has two
 score on each map is what counts, whichever run it came from. A slot no lobby has played yet still
 reads from the sheet column it is bound to.
 
+On freemod slots (`FM…`, `TB…`) the results table shows which mods each player picked, and the
+**Freemod score multipliers** table in the Format settings - `EZ × 1.8`, say - is applied to their
+score on top of osu!'s own before the best run is chosen and ranked.
+
 Seeding follows the [Z-sum](https://osu.ppy.sh/wiki/en/Tournaments/Common_seeding_methods#z-sum):
 on every map, a player's score is expressed as the number of sample standard deviations above or
 below the mean across everyone with a qualifier result (a map not played counts as zero), and those

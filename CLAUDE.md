@@ -59,7 +59,11 @@ field breaks existing deployments.
   taking each player's **best** game on it; and failing any, the sheet column the slot names
   (`mappool.score_column`), whose values stay in `players.extra`. A player on a `name:` placeholder
   is matched to lobby scores by username. So re-pointing a slot, re-importing the sheet or importing
-  players after their lobby needs nothing re-read.
+  players after their lobby needs nothing re-read. A lobby score keeps the player's **own** mods
+  (`own_mods`: score mods minus the game's minus NF); on a freemod slot (`isFreeMod`: label `FM…`
+  or `TB…`) the score is multiplied by `tournament_settings.mod_multipliers[canonical mods]` before
+  the best run is picked, ranked or Z-scored. Rows written before `own_mods` existed are NULL, and
+  `loadLobbies` clears the watermark of their lobbies so they are read again once.
 - **Seeding follows the Z-sum** (`seedingByZSum`): per qualifier slot, `(score − mean) / sample sd`
   over the field of everyone with at least one result, an unplayed map counting as 0; ties go to the
   raw total, then to the current order. `qualifier-lobbies.ts` calls `reseedByZSum` after every

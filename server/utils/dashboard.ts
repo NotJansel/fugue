@@ -169,6 +169,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       minBidIncrement: tournament.minBidIncrement,
       maxBidIncrement: tournament.maxBidIncrement,
       secondRun: tournament.secondRun,
+      modMultipliers: tournament.modMultipliers ?? {},
       startingBid: startingBid(tournament),
       seedingLocked: tournament.seedingLocked,
       auctionChannelConfigured: config.auctionChannelId != null,

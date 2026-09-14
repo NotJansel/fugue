@@ -252,6 +252,11 @@ const en = {
   'setup.format.bids': 'Default bid range',
   'setup.format.starting': 'Starting',
   'setup.format.max': 'Max',
+  'setup.format.multipliers': 'Freemod score multipliers',
+  'setup.format.multipliersHint': 'On FM and TB slots, a player\'s score is multiplied by the factor for the mods they picked - EZ 1.8, say. Applied on top of osu!\'s own multiplier; unlisted mods count as written.',
+  'setup.format.multiplierMods': 'Mods',
+  'setup.format.multiplierFactor': 'Factor',
+  'setup.format.addMultiplier': 'Add multiplier',
 
   'setup.purses.title': 'Purses',
   'setup.purses.hint': 'Every captain starts the night with the same budget.',
@@ -583,6 +588,11 @@ const de: Record<keyof typeof en, string> = {
   'setup.format.bids': 'Standard-Gebotsrahmen',
   'setup.format.starting': 'Start',
   'setup.format.max': 'Maximum',
+  'setup.format.multipliers': 'Freemod-Punktemultiplikatoren',
+  'setup.format.multipliersHint': 'Auf FM- und TB-Slots wird die Punktzahl eines Spielers mit dem Faktor für die gewählten Mods multipliziert - etwa EZ 1,8. Gilt zusätzlich zu osu!s eigenem Multiplikator; nicht aufgeführte Mods zählen wie gespielt.',
+  'setup.format.multiplierMods': 'Mods',
+  'setup.format.multiplierFactor': 'Faktor',
+  'setup.format.addMultiplier': 'Multiplikator hinzufügen',
 
   'setup.purses.title': 'Geldbeutel',
   'setup.purses.hint': 'Alle Captains starten den Abend mit demselben Budget.',

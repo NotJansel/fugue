@@ -17,6 +17,8 @@ interface Body {
   minBidIncrement?: number | null
   maxBidIncrement?: number | null
   secondRun?: boolean | null
+  /** Freemod score multipliers by mod combination; the whole table, replacing what is on file. */
+  modMultipliers?: Record<string, number> | null
 }
 
 export default defineEventHandler(async (event): Promise<ApiOk> => {
@@ -35,7 +37,8 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     defaultMaxBid: body.defaultMaxBid,
     minBidIncrement: body.minBidIncrement,
     maxBidIncrement: body.maxBidIncrement,
-    secondRun: body.secondRun
+    secondRun: body.secondRun,
+    modMultipliers: body.modMultipliers && typeof body.modMultipliers === 'object' ? body.modMultipliers : null
   })
 
   return { ok: true }

@@ -9,7 +9,7 @@ import {
   removeLobby,
   saveLobby
 } from './lobby-store'
-import { formatMods } from './mods'
+import { Mods, formatMods } from './mods'
 import type { OsuGame, OsuGameScore, OsuMatch } from './osu-api'
 import { fetchMatchHistory, fetchMatchPage, matchIdIn, osuApiReady } from './osu-api'
 import { getTournament, reseedByZSum } from './tournament-store'
@@ -166,6 +166,9 @@ const toLobbyScore = (matchId: number, game: OsuGame, score: OsuGameScore): Lobb
   username: score.username,
   score: score.score,
   mods: formatMods(game.mods | score.mods),
+  // What the player picked themselves: NF is a lobby rule, not a choice, and the game's own mods
+  // were forced on everyone.
+  ownMods: formatMods(score.mods & ~game.mods & ~Mods.NF),
   passed: score.passed,
   playedAt: game.startedAt
 })

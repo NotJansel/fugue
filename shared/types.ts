@@ -80,9 +80,72 @@ export interface QualifierMap {
 /** What a player put up on one qualifier map, and where that placed them in the field. */
 export interface MapScore {
   value: number
-  /** The cell as the sheet wrote it, so separators and decimals show up the way organisers expect. */
+  /**
+   * The cell as the sheet wrote it, so separators and decimals show up the way organisers expect.
+   * A score read from a lobby is a plain integer, which the dashboard formats itself.
+   */
   display: string
   rank: number
+  /**
+   * How many standard deviations above or below the map's mean this score sits - the per-map term of
+   * the Z-sum. `null` when the map has too few scores for a deviation to mean anything.
+   */
+  z: number | null
+  /** Where the score came from: the osu! lobby it was set in, or the qualifier sheet's column. */
+  source: 'lobby' | 'sheet'
+}
+
+/**
+ * One score a player set in a qualifier lobby, as osu! reported it.
+ *
+ * Kept raw, per game and user, rather than folded into the player: which of a player's runs counts,
+ * and which pool slot a beatmap belongs to, are worked out on every dashboard build - so a slot
+ * re-pointed at another beatmap, or a player imported after their lobby, needs nothing re-read.
+ */
+export interface LobbyScore {
+  matchId: number
+  gameId: number
+  /** osu! beatmap (difficulty) ID the game was played on - what ties it to a pool slot. */
+  beatmapId: string
+  /** osu! user ID, as a string like every other osu! ID here. */
+  osuId: string
+  /** As osu! listed the player in the lobby; what a `name:` placeholder is matched on. */
+  username: string
+  score: number
+  /** Mods the game was played with plus the player's own, canonical ("HDDT"), empty for none. */
+  mods: string
+  passed: boolean
+  /** When the game started, epoch millis. */
+  playedAt: number
+}
+
+/**
+ * A qualifier lobby osu! knows about, found by name in the match history or added by link.
+ *
+ * `key` is the schedule row it belongs to (see `lobbyKey` in `server/utils/qualifier-lobbies.ts`); a
+ * lobby whose name fits no row is keyed by its match ID instead, and still has its scores read.
+ */
+export interface QualifierLobby {
+  matchId: number
+  key: string
+  name: string
+  startedAt: number
+  /** `null` while the lobby is still open. */
+  endedAt: number | null
+  /** Newest match event already read, so the next read only asks for what came after it. */
+  latestEventId: number | null
+}
+
+/** A lobby as the dashboard lists it: when it ran, and how much of it was read into results. */
+export interface QualifierLobbyDto {
+  matchId: number
+  key: string
+  name: string
+  startedAt: number
+  endedAt: number | null
+  /** Games whose scores are on file, and distinct players who set one. */
+  games: number
+  players: number
 }
 
 /** A player bought at auction, recorded against the winning captain. */
@@ -267,6 +330,11 @@ export interface PlayerDto {
   discordVerified: boolean
   qualScore: number | null
   sheetSeed: number | null
+  /**
+   * Sum of the player's per-map Z-scores across the qualifier pool - what the seeding is derived
+   * from. `null` for a player with no qualifier result on file.
+   */
+  zSum: number | null
   ppRaw: number | null
   ppRank: number | null
   captainMode: CaptainMode
@@ -427,6 +495,8 @@ export interface DashboardState {
   importProgress: ImportProgress | null
   importOutcome: ImportOutcome | null
   schedule: ScheduleDto | null
+  /** Every qualifier lobby on file, newest first. */
+  lobbies: QualifierLobbyDto[]
   poolRemaining: number
 }
 

@@ -50,12 +50,28 @@ field breaks existing deployments.
   after its start, a match for 90 minutes - unless `qualifier-lobbies.ts` has found the osu! lobby
   itself (named `TP: (Qualifiers) vs (Lobby <row ID>)`), whose open/closed state then wins. The match
   history is ~1000 lobbies an hour, so it is only paged while a qualifier row is near its start, and
-  only back to the newest match already seen; lobbies live in memory and are found again after a
-  restart.
-- The mappool stores **no scores**. Each slot names the sheet column its scores live in
-  (`mappool.score_column`), and the values stay in `players.extra` where the import left them;
-  per-map score and map rank are derived on every dashboard build. So re-pointing a slot at another
-  column, or re-importing the sheet, needs no migration. `POST /api/mappool` replaces the pool wholesale and fills in beatmap
+  only back to the newest match already seen. The watch is started from `bootstrap.ts` whether or
+  not a schedule is set, since lobbies can also be added by link.
+- The mappool stores **no scores**. Results are derived on every dashboard build
+  (`qualifierResults` in `tournament-model.ts`), per slot from the first of two sources: the raw
+  lobby scores in `lobby_scores` (`lobby-store.ts`), matched to the slot by **beatmap ID** among the
+  qualifier slots (`qualifierMaps`: the round named `/qualif/i`, or the whole pool when none is),
+  taking each player's **best** game on it; and failing any, the sheet column the slot names
+  (`mappool.score_column`), whose values stay in `players.extra`. A player on a `name:` placeholder
+  is matched to lobby scores by username. So re-pointing a slot, re-importing the sheet or importing
+  players after their lobby needs nothing re-read.
+- **Seeding follows the Z-sum** (`seedingByZSum`): per qualifier slot, `(score − mean) / sample sd`
+  over the field of everyone with at least one result, an unplayed map counting as 0; ties go to the
+  raw total, then to the current order. `qualifier-lobbies.ts` calls `reseedByZSum` after every
+  change to lobby scores **unless `seedingLocked`** - the lock is the only thing that stops the
+  seeding moving under an organiser's hands. `POST /api/seeding/reseed` does the same on demand.
+- `qualifier-lobbies.ts` reads each open lobby every minute and once more when it closes, paging
+  `GET /matches/{id}` backwards (`before=`) until an event at or below the lobby's `latest_event_id`
+  turns up. That watermark is the newest *settled* event, held back to just before a game still in
+  progress, so a game that finishes later is still picked up. Lobbies and scores are persisted;
+  a lobby with `latest_event_id` null is read once whatever its age, which is how one added by
+  link (`POST /api/lobbies/add`) or found already closed gets its scores. The store never emits a
+  change: the watcher reseeds first and emits once, so results and seeding never disagree on screen. `POST /api/mappool` replaces the pool wholesale and fills in beatmap
   metadata, skipping slots whose beatmap ID *and* mods have not changed. `POST /api/mappool/refresh`
   re-asks about every slot regardless.
 - `QualifierMap.stars` is the rating **with the slot's mods applied**. Mods default to whatever the

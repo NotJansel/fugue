@@ -198,6 +198,30 @@ const schema = `
     balance     integer NOT NULL DEFAULT 0 CHECK (balance >= 0)
   );
 
+  CREATE TABLE IF NOT EXISTS qualifier_lobbies (
+    match_id         bigint PRIMARY KEY,
+    -- The schedule row the lobby was named after, or the match ID for one added by link.
+    row_key          text NOT NULL,
+    name             text NOT NULL,
+    started_at       bigint NOT NULL,
+    ended_at         bigint,
+    -- Newest match event already read, so a re-read only asks for what came after it.
+    latest_event_id  bigint
+  );
+
+  CREATE TABLE IF NOT EXISTS lobby_scores (
+    game_id     bigint NOT NULL,
+    user_id     text NOT NULL,
+    match_id    bigint NOT NULL REFERENCES qualifier_lobbies (match_id) ON DELETE CASCADE,
+    beatmap_id  text NOT NULL,
+    username    text NOT NULL,
+    score       bigint NOT NULL,
+    mods        text NOT NULL DEFAULT '',
+    passed      boolean NOT NULL,
+    played_at   bigint NOT NULL,
+    PRIMARY KEY (game_id, user_id)
+  );
+
   CREATE TABLE IF NOT EXISTS osu_links (
     discord_id    text PRIMARY KEY,
     -- One osu! account belongs to exactly one Discord account, enforced here rather than only in code.

@@ -2,6 +2,7 @@ import type { PoolClient } from 'pg'
 import type {
   CaptainMode,
   ColumnMapping,
+  LobbyScore,
   MappoolColumnMapping,
   MappoolSheetConfig,
   QualifierMap,
@@ -15,7 +16,7 @@ import type {
 import { emitChange } from './bus'
 import { query, valuesList, withTransaction } from './db'
 import { serialiser } from './store-queue'
-import { captainForDiscordId, emptyTournament } from './tournament-model'
+import { captainForDiscordId, emptyTournament, seedingByZSum } from './tournament-model'
 
 /**
  * Single source of truth for the tournament: qualified players, seeding order, captains and team
@@ -498,6 +499,26 @@ export function moveSeed(osuId: string, toIndex: number): Promise<TournamentStat
 
     return { ...current, players: reordered }
   })
+}
+
+/**
+ * Puts the seeding in the order the qualifier results call for - see `seedingByZSum`.
+ *
+ * The lobby scores are handed in rather than fetched, so this store stays ignorant of where results
+ * come from. Callers decide what the seeding lock means to them: the route refuses, the lobby watcher
+ * simply leaves a locked seeding alone. Returns whether the order actually moved.
+ */
+export async function reseedByZSum(lobbyScores: LobbyScore[]): Promise<boolean> {
+  let moved = false
+
+  await update((current) => {
+    const reseeded = seedingByZSum(current, lobbyScores)
+    moved = reseeded.some((player, index) => player.osuId !== current.players[index]?.osuId)
+
+    return moved ? { ...current, players: reseeded } : current
+  })
+
+  return moved
 }
 
 export const setCaptainMode = (osuId: string, mode: CaptainMode): Promise<TournamentState> =>

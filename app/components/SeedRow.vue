@@ -71,7 +71,8 @@ const onDrop = () => {
       </p>
       <p class="text-xs text-muted tnum">
         <span v-if="player.ppRaw != null">{{ number(player.ppRaw) }} {{ t('common.pp') }}</span>
-        <span v-if="player.qualScore != null"> · {{ number(player.qualScore, 2) }}</span>
+        <span v-if="player.zSum != null"> · {{ t('seeding.zSum', { value: number(player.zSum, 2) }) }}</span>
+        <span v-else-if="player.qualScore != null"> · {{ number(player.qualScore, 2) }}</span>
         <span v-if="player.sheetSeed != null"> · {{ t('seeding.sheetSeed', { seed: player.sheetSeed }) }}</span>
       </p>
       <p

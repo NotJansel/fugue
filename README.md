@@ -126,6 +126,26 @@ start times are converted to each viewer's time zone when the header names the s
 (CEST)`), and a signed-in player's own lobby is highlighted. The website re-reads the sheet every 5
 minutes on its own; **Refresh now** skips the wait.
 
+## Qualifier results and Z-sum seeding
+
+Results come from the lobbies themselves. A qualifier lobby named `TP: (Qualifiers) vs (Lobby <row
+ID>)` is found in the osu! match history around its scheduled start, read again every minute while it
+is open and once more when it closes, and every score set in it is kept. Any other lobby - named
+differently, or played outside the watched window - can be added by its osu! match link at the bottom
+of the **Mappool** page, and removed there again.
+
+Only maps in the qualifier pool count: a game is matched to a slot by beatmap ID (and by mods where
+the same map is in the pool twice), so warm-ups are ignored. Each player has two runs, and their best
+score on each map is what counts, whichever run it came from. A slot no lobby has played yet still
+reads from the sheet column it is bound to.
+
+Seeding follows the [Z-sum](https://osu.ppy.sh/wiki/en/Tournaments/Common_seeding_methods#z-sum):
+on every map, a player's score is expressed as the number of sample standard deviations above or
+below the mean across everyone with a qualifier result (a map not played counts as zero), and those
+are added up. Ties go to the higher raw total. While the seeding is unlocked it is reordered on every
+change to the results; lock it to freeze it, and **Reseed by Z-sum** on the Seeding page puts a
+hand-edited order back.
+
 ## Captains and seeding
 
 The number of captains follows the field size: `qualified ÷ players per team`, rounded down, so 34
@@ -139,8 +159,8 @@ player **Captain** or **Never** to override the cut-off regardless of where they
 
 The pool is usually published as its own sheet, often with every round stacked in one document, so
 the import takes a round name and a row range and replaces only that round. It supplies slot names
-and beatmap IDs; the *scores* still come from the qualifier sheet, bound per slot to a column named
-after it.
+and beatmap IDs. The beatmap ID is what lobby scores attach to; a slot can also be bound to a
+qualifier-sheet column named after it, which is what shows until a lobby has played the map.
 
 Star ratings and difficulty settings are shown with the slot's mods applied — a DT slot is rated at
 its DT rating. Mods are taken from the slot name (`HD2` → HD) unless you say otherwise.

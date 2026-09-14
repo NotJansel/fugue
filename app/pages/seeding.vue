@@ -28,6 +28,21 @@ const drop = (target: PlayerDto) => {
 const setMode = (osuId: string, mode: CaptainMode) => api('/api/players/captain', { osuId, mode }, { quiet: true })
 
 const toggleLock = (value: boolean) => api('/api/seeding/lock', { locked: value }, { quiet: true })
+
+/** Whether any result is on file to seed by - what makes the reseed button worth showing. */
+const hasResults = computed(() => players.value.some(player => player.zSum != null))
+
+const reseeding = ref(false)
+
+async function reseed() {
+  reseeding.value = true
+
+  try {
+    await api('/api/seeding/reseed')
+  } finally {
+    reseeding.value = false
+  }
+}
 </script>
 
 <template>
@@ -53,6 +68,17 @@ const toggleLock = (value: boolean) => api('/api/seeding/lock', { locked: value 
         >
           {{ t('seeding.dragHint') }}
         </p>
+        <UButton
+          v-if="editable && hasResults"
+          icon="i-lucide-sigma"
+          size="sm"
+          color="neutral"
+          variant="subtle"
+          :loading="reseeding"
+          @click="reseed"
+        >
+          {{ t('seeding.reseed') }}
+        </UButton>
         <USwitch
           v-if="isAdmin"
           :model-value="locked"
@@ -69,6 +95,13 @@ const toggleLock = (value: boolean) => api('/api/seeding/lock', { locked: value 
       color="neutral"
       variant="subtle"
       :description="t('seeding.locked')"
+    />
+    <UAlert
+      v-else-if="isAdmin && hasResults"
+      icon="i-lucide-sigma"
+      color="neutral"
+      variant="subtle"
+      :description="t('seeding.followsResults')"
     />
 
     <p

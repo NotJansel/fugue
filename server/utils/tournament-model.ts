@@ -1,4 +1,12 @@
-import type { MapScore, TournamentPlayer, TournamentState, TournamentWarning } from '#shared/types'
+import type {
+  LobbyScore,
+  MapScore,
+  QualifierMap,
+  TournamentPlayer,
+  TournamentState,
+  TournamentWarning
+} from '#shared/types'
+import { difficultyMask, parseMods } from './mods'
 
 export const DEFAULT_TEAM_SIZE = 4
 
@@ -141,42 +149,179 @@ export function captainForDiscordId(state: TournamentState, discordId: string): 
 }
 
 /**
- * Every qualifier result, as `osu! ID -> map id -> score`.
+ * The slots a qualifier lobby plays: the round whose name says so, or the whole pool when no round
+ * does - a tournament that never labels its rounds still has a qualifier pool.
+ */
+export function qualifierMaps(state: TournamentState): QualifierMap[] {
+  const named = state.mappool.filter(map => /qualif/i.test(map.stage))
+
+  return named.length > 0 ? named : state.mappool
+}
+
+/** A player's standing after qualifiers: the Z-sum the seeding goes by, and the raw total behind it. */
+export interface QualifierStanding {
+  zSum: number
+  total: number
+}
+
+export interface QualifierResults {
+  /** `osu! ID -> map id -> score`, for every slot with results from either source. */
+  scores: Record<string, Record<string, MapScore>>
+  /** Everyone with at least one result on a qualifier slot. */
+  standings: Record<string, QualifierStanding>
+}
+
+/** Mean and *sample* standard deviation, which is what the seeding method is defined over. */
+function deviation(values: number[]): { mean: number, sd: number } | null {
+  if (values.length < 2) return null
+
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1)
+  const sd = Math.sqrt(variance)
+
+  return sd > 0 ? { mean, sd } : null
+}
+
+/**
+ * Every qualifier result and the standings they add up to.
+ *
+ * Each slot's scores come from the lobbies first: every game played on the slot's beatmap, in any
+ * lobby on file, and a player's *best* of them - each player has two runs, and only the better one
+ * counts, whichever run it was. A slot no lobby has played yet falls back to the sheet column it is
+ * bound to, so a tournament that only ever imports a sheet reads exactly as before. A game on a
+ * beatmap outside the qualifier pool - a warm-up - matches no slot and is ignored.
+ *
+ * Standings follow the Z-sum method: on every qualifier slot, each player's score is expressed as
+ * the number of standard deviations above or below the mean across the field, and those are summed.
+ * The field is everyone with at least one qualifier result, and a map one of them did not play is a
+ * score of zero, the way a qualifier sheet counts it. A slot nobody has played contributes nothing.
  *
  * Ranks are competition style: players tied on a map share a rank and the next one skips, and a
- * player with no readable score in that map's column simply has no entry - they are not ranked last.
+ * player with no score on a map simply has no entry - they are not ranked last.
  */
-export function mapScores(state: TournamentState): Record<string, Record<string, MapScore>> {
-  const results: Record<string, Record<string, MapScore>> = {}
+export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore[]): QualifierResults {
+  const known = new Set(state.players.map(player => player.osuId))
+  // A player imported without an osu! ID is only ever matched by name, so a score set under a name
+  // that later turns out to be theirs attaches once enrichment supplies the ID.
+  const placeholders = new Map(
+    state.players
+      .filter(player => player.osuId.startsWith('name:'))
+      .map(player => [player.username.toLowerCase(), player.osuId])
+  )
+  const playerFor = (score: LobbyScore): string | null =>
+    known.has(score.osuId) ? score.osuId : placeholders.get(score.username.toLowerCase()) ?? null
+
+  const qualifiers = new Set(qualifierMaps(state).map(map => map.id))
+
+  // Which slot a game belongs to. Two slots on one beatmap - the same map as NM and as DT - are told
+  // apart by the mods the game was played with.
+  const slotsByBeatmap = new Map<string, QualifierMap[]>()
+  for (const map of qualifierMaps(state)) {
+    if (map.beatmapId) slotsByBeatmap.set(map.beatmapId, [...(slotsByBeatmap.get(map.beatmapId) ?? []), map])
+  }
+
+  const slotFor = (score: LobbyScore): QualifierMap | null => {
+    const slots = slotsByBeatmap.get(score.beatmapId) ?? []
+    if (slots.length <= 1) return slots[0] ?? null
+
+    const played = difficultyMask(parseMods(score.mods))
+
+    return slots.find(slot => difficultyMask(parseMods(slot.mods)) === played) ?? slots[0]!
+  }
+
+  interface Entry {
+    value: number
+    display: string
+  }
+
+  const perMap = new Map<string, { source: MapScore['source'], values: Map<string, Entry> }>()
+
+  for (const score of lobbyScores) {
+    const slot = slotFor(score)
+    const osuId = playerFor(score)
+    if (!slot || !osuId) continue
+
+    let entry = perMap.get(slot.id)
+    if (!entry) perMap.set(slot.id, entry = { source: 'lobby', values: new Map() })
+
+    const best = entry.values.get(osuId)
+    if (!best || score.score > best.value) entry.values.set(osuId, { value: score.score, display: String(score.score) })
+  }
 
   for (const map of state.mappool) {
     const column = map.column?.trim()
-    if (!column) continue
+    if (!column || perMap.has(map.id)) continue
 
-    const scored = state.players.flatMap((player) => {
+    const values = new Map<string, Entry>()
+
+    for (const player of state.players) {
       const raw = player.extra?.[column]?.trim()
-      if (!raw) return []
+      if (!raw) continue
 
       const value = parseSheetNumber(raw)
-      if (value == null) return []
+      if (value != null) values.set(player.osuId, { value, display: raw })
+    }
 
-      return [{ osuId: player.osuId, raw, value }]
-    }).sort((a, b) => b.value - a.value)
+    if (values.size > 0) perMap.set(map.id, { source: 'sheet', values })
+  }
 
+  const field = state.players
+    .map(player => player.osuId)
+    .filter(osuId => [...perMap].some(([mapId, entry]) => qualifiers.has(mapId) && entry.values.has(osuId)))
+
+  const scores: Record<string, Record<string, MapScore>> = {}
+  const standings: Record<string, QualifierStanding> = {}
+
+  for (const [mapId, { source, values }] of perMap) {
+    const stats = qualifiers.has(mapId) ? deviation(field.map(osuId => values.get(osuId)?.value ?? 0)) : null
+    const zOf = (value: number): number | null => stats ? (value - stats.mean) / stats.sd : null
+
+    const ranked = [...values.entries()].sort((a, b) => b[1].value - a[1].value)
     let previous: number | null = null
     let previousRank = 0
 
-    scored.forEach((entry, index) => {
+    ranked.forEach(([osuId, entry], index) => {
       const rank = entry.value === previous ? previousRank : index + 1
       previous = entry.value
       previousRank = rank
 
-      results[entry.osuId] ??= {}
-      results[entry.osuId]![map.id] = { value: entry.value, display: entry.raw, rank }
+      scores[osuId] ??= {}
+      scores[osuId]![mapId] = { value: entry.value, display: entry.display, rank, z: zOf(entry.value), source }
     })
+
+    if (!qualifiers.has(mapId)) continue
+
+    for (const osuId of field) {
+      const value = values.get(osuId)?.value ?? 0
+      const standing = standings[osuId] ??= { zSum: 0, total: 0 }
+
+      standing.zSum += zOf(value) ?? 0
+      standing.total += value
+    }
   }
 
-  return results
+  return { scores, standings }
+}
+
+/**
+ * The seeding the qualifier results call for: highest Z-sum first, a tie going to the higher raw
+ * total and then to whoever was seeded higher already. Players with no qualifier result keep their
+ * order below everyone who has one.
+ */
+export function seedingByZSum(state: TournamentState, lobbyScores: LobbyScore[]): TournamentPlayer[] {
+  const { standings } = qualifierResults(state, lobbyScores)
+  const position = new Map(state.players.map((player, index) => [player.osuId, index]))
+
+  const ranked = state.players
+    .filter(player => standings[player.osuId] != null)
+    .sort((a, b) => {
+      const left = standings[a.osuId]!
+      const right = standings[b.osuId]!
+
+      return right.zSum - left.zSum || right.total - left.total || position.get(a.osuId)! - position.get(b.osuId)!
+    })
+
+  return [...ranked, ...state.players.filter(player => standings[player.osuId] == null)]
 }
 
 /**

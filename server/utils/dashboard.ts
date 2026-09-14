@@ -1,8 +1,9 @@
-import type { DashboardState, PlayerDto, TeamDto, UserSession } from '#shared/types'
+import type { DashboardState, PlayerDto, QualifierLobbyDto, TeamDto, UserSession } from '#shared/types'
 import { auctionSnapshot } from './auction'
 import { config, osuOauthConfigured } from './config'
 import { botConnected } from '../bot/client'
 import { currentImportProgress, lastImportOutcome } from './import-progress'
+import { allLobbies, allLobbyScores } from './lobby-store'
 import { allOsuLinks } from './osu-link-store'
 import { getAllBalances, getAllHolds } from './purse-store'
 import { scheduleDto } from './schedule-store'
@@ -10,13 +11,39 @@ import {
   captainCount,
   captains,
   field,
-  mapScores,
+  qualifierResults,
   reserveFor,
   spareSheetColumns,
   startingBid,
   warnings
 } from './tournament-model'
 import { getTournament } from './tournament-store'
+
+/** The lobbies as the dashboard lists them: each with a count of what has been read out of it. */
+function lobbyDtos(): QualifierLobbyDto[] {
+  const games = new Map<number, Set<number>>()
+  const players = new Map<number, Set<string>>()
+
+  for (const score of allLobbyScores()) {
+    let gameIds = games.get(score.matchId)
+    if (!gameIds) games.set(score.matchId, gameIds = new Set())
+    gameIds.add(score.gameId)
+
+    let osuIds = players.get(score.matchId)
+    if (!osuIds) players.set(score.matchId, osuIds = new Set())
+    osuIds.add(score.osuId)
+  }
+
+  return allLobbies().map(lobby => ({
+    matchId: lobby.matchId,
+    key: lobby.key,
+    name: lobby.name,
+    startedAt: lobby.startedAt,
+    endedAt: lobby.endedAt,
+    games: games.get(lobby.matchId)?.size ?? 0,
+    players: players.get(lobby.matchId)?.size ?? 0
+  }))
+}
 
 /** What a player looks like to a viewer who hasn't logged in. */
 const redactPlayer = (player: PlayerDto): PlayerDto => ({
@@ -56,7 +83,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
   const captainIds = new Set(chosenCaptains.map(player => player.osuId))
   const takingPart = new Set(field(tournament).map(player => player.osuId))
   const seeds = new Map(tournament.players.map((player, index) => [player.osuId, index + 1]))
-  const scores = mapScores(tournament)
+  const results = qualifierResults(tournament, allLobbyScores())
 
   const purchases = new Map<string, { captainOsuId: string, price: number }>()
   for (const [captainOsuId, members] of Object.entries(tournament.rosters)) {
@@ -75,6 +102,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       discordVerified: player.discordId != null && verified.get(player.osuId) === player.discordId,
       qualScore: player.qualScore ?? null,
       sheetSeed: player.sheetSeed ?? null,
+      zSum: results.standings[player.osuId]?.zSum ?? null,
       ppRaw: player.ppRaw ?? null,
       ppRank: player.ppRank ?? null,
       captainMode: player.captainMode,
@@ -85,7 +113,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       price: purchase?.price ?? null,
       balance: player.discordId ? balances[player.discordId] ?? 0 : null,
       held: player.discordId ? holds[player.discordId] ?? 0 : null,
-      mapScores: scores[player.osuId] ?? {},
+      mapScores: results.scores[player.osuId] ?? {},
       extra: player.extra ?? {}
     }
   })
@@ -160,6 +188,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     importProgress: currentImportProgress(),
     importOutcome: guest ? null : lastImportOutcome(),
     schedule: scheduleDto(guest),
+    lobbies: lobbyDtos(),
     poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
   }
 }

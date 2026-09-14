@@ -1,7 +1,7 @@
 import type { BeatmapDifficulty } from './difficulty'
 import { config, osuOauthConfigured } from './config'
 import { withMods } from './difficulty'
-import { Mods, difficultyMask } from './mods'
+import { Mods, difficultyMask, parseMods } from './mods'
 
 /**
  * The osu! API v2, authenticated as the *application* rather than as a user.
@@ -72,6 +72,43 @@ interface V2Match {
   end_time?: string | null
 }
 
+/**
+ * A score inside a match game. These come back in the *legacy* match-score shape whatever API
+ * version is asked for, with `total_score` mirrored into `legacy_total_score`; both are read in case
+ * one of them goes.
+ */
+interface V2MatchScore {
+  user_id?: number
+  total_score?: number
+  legacy_total_score?: number
+  score?: number
+  passed?: boolean
+  mods?: (string | { acronym?: string })[]
+  match?: { pass?: boolean }
+}
+
+interface V2MatchGame {
+  id?: number
+  beatmap_id?: number
+  start_time?: string | null
+  end_time?: string | null
+  mods?: string[]
+  scores?: V2MatchScore[]
+}
+
+interface V2MatchEvent {
+  id?: number
+  game?: V2MatchGame
+}
+
+interface V2MatchDetail {
+  match?: V2Match
+  events?: V2MatchEvent[]
+  users?: { id?: number, username?: string }[]
+  first_event_id?: number | null
+  latest_event_id?: number | null
+}
+
 /** A multiplayer lobby as the match history lists it: no games, no players, just when it ran. */
 export interface OsuMatch {
   matchId: number
@@ -79,6 +116,41 @@ export interface OsuMatch {
   startedAt: number
   /** `null` while the lobby is still open. */
   endedAt: number | null
+}
+
+export interface OsuGameScore {
+  osuId: string
+  username: string
+  score: number
+  /** Legacy bitmask of the player's own mods on top of the game's. */
+  mods: number
+  passed: boolean
+}
+
+/** One map played in a lobby, with everyone's score on it. Only games that have finished are listed. */
+export interface OsuGame {
+  gameId: number
+  beatmapId: string
+  /** Legacy bitmask of the mods the game was set up with. */
+  mods: number
+  startedAt: number
+  scores: OsuGameScore[]
+}
+
+/** One page of a lobby's history - the match itself, and the finished games on that page. */
+export interface OsuMatchPage {
+  match: OsuMatch
+  games: OsuGame[]
+  /** Oldest event on this page; `null` for an empty one. */
+  oldestEventId: number | null
+  /**
+   * Newest event on this page that a later read need not look at again: a game still being played
+   * sits on an event that will only carry scores once it ends, so everything from it on is left for
+   * the next read. `null` for an empty page.
+   */
+  settledEventId: number | null
+  /** The very first event of the lobby, which is where paging backwards stops. */
+  firstEventId: number | null
 }
 
 let token: { value: string, expiresAt: number } | null = null
@@ -294,7 +366,7 @@ const toMatch = (match: V2Match | undefined): OsuMatch | null =>
  * The history is every tournament lobby on the server - around a thousand an hour - so a caller reads
  * back only as far as it has to.
  */
-export async function fetchMatchPage(cursor: string | null): Promise<{ matches: OsuMatch[], cursor: string | null } | null> {
+export async function fetchMatchHistory(cursor: string | null): Promise<{ matches: OsuMatch[], cursor: string | null } | null> {
   const page = await api<{ matches?: V2Match[], cursor_string?: string | null }>(
     `/matches?limit=50&sort=id_desc${cursor ? `&cursor_string=${encodeURIComponent(cursor)}` : ''}`
   )
@@ -306,11 +378,79 @@ export async function fetchMatchPage(cursor: string | null): Promise<{ matches: 
   }
 }
 
-/** One lobby, looked up again to see whether it has closed since it was listed. */
-export async function fetchMatch(matchId: number): Promise<OsuMatch | null> {
-  const found = await api<{ match?: V2Match }>(`/matches/${matchId}?limit=1`)
+/** A game's or a score's mods, whichever spelling the API used, as one legacy bitmask. */
+const modMask = (mods: (string | { acronym?: string })[] | undefined): number =>
+  (mods ?? []).reduce<number>((mask, mod) => {
+    const acronym = typeof mod === 'string' ? mod : mod.acronym ?? ''
 
-  return toMatch(found?.match)
+    return mask | parseMods(acronym)
+  }, Mods.NONE)
+
+function toGame(game: V2MatchGame | undefined, usernames: Map<number, string>): OsuGame | null {
+  // A game still being played has no end time and no scores worth reading yet.
+  if (game?.id == null || game.beatmap_id == null || !game.start_time || !game.end_time) return null
+
+  const scores = (game.scores ?? []).flatMap((score): OsuGameScore[] => {
+    if (score.user_id == null) return []
+
+    const value = score.total_score ?? score.legacy_total_score ?? score.score ?? 0
+
+    return [{
+      osuId: String(score.user_id),
+      username: usernames.get(score.user_id) ?? String(score.user_id),
+      score: value,
+      mods: modMask(score.mods),
+      passed: score.passed ?? score.match?.pass ?? true
+    }]
+  })
+
+  return {
+    gameId: game.id,
+    beatmapId: String(game.beatmap_id),
+    mods: modMask(game.mods),
+    startedAt: Date.parse(game.start_time),
+    scores
+  }
+}
+
+/**
+ * One page of a lobby's history: the match itself, and the finished games among the events on it.
+ *
+ * Events come back oldest first, up to 100 a page, and the newest page is what arrives without
+ * `before`. Reading a whole lobby is therefore a matter of asking for the page before the oldest
+ * event seen until the first event of the match turns up - or until an event already on file does,
+ * which for a lobby polled every minute is the first page nearly every time.
+ */
+export async function fetchMatchPage(matchId: number, before: number | null = null): Promise<OsuMatchPage | null> {
+  const detail = await api<V2MatchDetail>(
+    `/matches/${matchId}?limit=100${before == null ? '' : `&before=${before}`}`
+  )
+  const match = toMatch(detail?.match)
+  if (match == null) return null
+
+  const usernames = new Map(
+    (detail?.users ?? []).flatMap(user => user.id != null && user.username ? [[user.id, user.username] as const] : [])
+  )
+  const events = (detail?.events ?? []).filter(event => event.id != null)
+  const ids = events.map(event => event.id!)
+  const unfinished = events.filter(event => event.game != null && !event.game.end_time).map(event => event.id!)
+
+  return {
+    match,
+    games: events.flatMap(event => toGame(event.game, usernames) ?? []),
+    oldestEventId: ids.length > 0 ? Math.min(...ids) : null,
+    settledEventId: ids.length === 0
+      ? null
+      : unfinished.length > 0 ? Math.min(...unfinished) - 1 : Math.max(...ids),
+    firstEventId: detail?.first_event_id ?? null
+  }
+}
+
+/** The match ID in a pasted lobby link - `/community/matches/123`, `/mp/123` - or a bare number. */
+export function matchIdIn(input: string): number | null {
+  const match = /(?:\/(?:matches|mp)\/|^)(\d+)(?:[/#?].*)?$/.exec(input.trim())
+
+  return match ? Number(match[1]) : null
 }
 
 /**

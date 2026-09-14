@@ -8,7 +8,16 @@ import type { QualifierMap } from '#shared/types'
  * to hold "which row was that" in their head while typing. Star rating and difficulty settings are
  * shown exactly as stored, which is to say already adjusted for the slot's mods.
  */
-const props = defineProps<{ map: QualifierMap, editing: boolean, columns: string[] }>()
+const props = withDefaults(
+  defineProps<{
+    map: QualifierMap
+    editing: boolean
+    columns: string[]
+    /** Players whose score on this slot was read from a lobby rather than the sheet. */
+    lobbyScores?: number
+  }>(),
+  { lobbyScores: 0 }
+)
 
 const emit = defineEmits<{ update: [patch: Partial<QualifierMap>], remove: [] }>()
 
@@ -110,7 +119,16 @@ const settings = computed(() => [
       </div>
 
       <UBadge
-        v-if="!editing && map.column"
+        v-if="!editing && lobbyScores > 0"
+        color="secondary"
+        variant="subtle"
+        size="sm"
+        icon="i-lucide-radio"
+      >
+        {{ t('mappool.fromLobbies', { count: lobbyScores }) }}
+      </UBadge>
+      <UBadge
+        v-else-if="!editing && map.column"
         color="neutral"
         variant="subtle"
         size="sm"

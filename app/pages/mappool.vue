@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { QualifierMap } from '#shared/types'
+import type { MapScore, QualifierMap } from '#shared/types'
 
 const { state, players, isAdmin, api } = useDashboard()
 const { t } = useLang()
@@ -104,8 +104,26 @@ async function refresh() {
   }
 }
 
-/** Slots that actually carry results - the only ones the results table can have a column for. */
-const scored = computed(() => visible.value.filter(map => map.column))
+/** How many players have a lobby score on each slot - what marks a slot as read live. */
+const lobbyScored = computed(() => {
+  const counts = new Map<string, number>()
+
+  for (const player of players.value) {
+    for (const [mapId, score] of Object.entries(player.mapScores)) {
+      if (score.source === 'lobby') counts.set(mapId, (counts.get(mapId) ?? 0) + 1)
+    }
+  }
+
+  return counts
+})
+
+/** Slots that actually carry results - from a lobby, or from the sheet column they are bound to. */
+const scored = computed(() =>
+  visible.value.filter(map => lobbyScored.value.has(map.id) || players.value.some(player => player.mapScores[map.id]))
+)
+
+/** A sheet cell is shown as written; a lobby score is a plain integer and gets the viewer's grouping. */
+const cellText = (cell: MapScore): string => cell.source === 'lobby' ? number(cell.value) : cell.display
 
 const results = computed(() => {
   if (scored.value.length === 0) return []
@@ -126,7 +144,7 @@ const results = computed(() => {
     .sort((a, b) => a.player.seed - b.player.seed)
 })
 
-const bound = computed(() => maps.value.filter(map => map.column).length)
+const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.value.has(map.id)).length)
 </script>
 
 <template>
@@ -241,6 +259,7 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
         :map="map"
         :editing="draft != null"
         :columns="columns"
+        :lobby-scores="lobbyScored.get(map.id) ?? 0"
         @update="update(map.id, $event)"
         @remove="removeMap(map.id)"
       />
@@ -251,9 +270,14 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
       variant="subtle"
     >
       <template #header>
-        <h2 class="font-display text-lg">
-          {{ t('mappool.results') }}
-        </h2>
+        <div>
+          <h2 class="font-display text-lg">
+            {{ t('mappool.results') }}
+          </h2>
+          <p class="mt-1 text-xs text-muted">
+            {{ t('mappool.resultsHint') }}
+          </p>
+        </div>
       </template>
 
       <div class="overflow-x-auto">
@@ -276,6 +300,9 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
               <th class="py-2 ps-3 font-medium text-right">
                 {{ t('mappool.average') }}
               </th>
+              <th class="py-2 ps-3 font-medium text-right">
+                {{ t('mappool.zSum') }}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -296,7 +323,7 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
                 class="py-1.5 px-3 text-right tnum"
               >
                 <span v-if="cell">
-                  {{ cell.display }}
+                  {{ cellText(cell) }}
                   <span
                     class="ms-1 text-xs"
                     :class="cell.rank === 1 ? 'text-secondary' : 'text-muted'"
@@ -307,13 +334,21 @@ const bound = computed(() => maps.value.filter(map => map.column).length)
                   class="text-muted"
                 >&mdash;</span>
               </td>
-              <td class="py-1.5 ps-3 text-right font-display tnum">
+              <td class="py-1.5 ps-3 text-right tnum">
                 {{ number(row.average, 2) }}
+              </td>
+              <td
+                class="py-1.5 ps-3 text-right font-display tnum"
+                :class="row.player.zSum == null ? 'text-muted' : ''"
+              >
+                {{ row.player.zSum == null ? '—' : number(row.player.zSum, 2) }}
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </UCard>
+
+    <QualifierLobbies />
   </div>
 </template>

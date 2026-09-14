@@ -1,7 +1,7 @@
 import type { ApiError, ScheduleDto, ScheduleSection } from '#shared/types'
 import { emitChange } from './bus'
 import { query } from './db'
-import { lobbyFor, startLobbyWatch, stopLobbyWatch } from './qualifier-lobbies'
+import { lobbyFor } from './qualifier-lobbies'
 import { parseSchedule } from './schedule'
 import { fetchGrid } from './sheets'
 import { serialiser } from './store-queue'
@@ -34,6 +34,9 @@ export async function loadSchedule(): Promise<void> {
 }
 
 export const scheduleUrl = (): string | null => url
+
+/** The sections as last read - what the lobby watch takes its qualifier start times from. */
+export const scheduleSections = (): ScheduleSection[] => sections
 
 export function scheduleDto(guest: boolean): ScheduleDto | null {
   if (url == null) return null
@@ -100,15 +103,11 @@ function restartRefresh(readNow: boolean): void {
 
   timer = setInterval(() => void refreshSchedule(), REFRESH_MS)
   timer.unref()
-
-  startLobbyWatch(() => sections)
 }
 
 export function stopScheduleRefresh(): void {
   if (timer) clearInterval(timer)
   timer = null
-
-  stopLobbyWatch()
 }
 
 /**

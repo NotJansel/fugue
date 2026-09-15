@@ -190,6 +190,9 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     importOutcome: guest ? null : lastImportOutcome(),
     schedule: scheduleDto(guest),
     lobbies: lobbyDtos(),
+    removedPlayers: guest
+      ? []
+      : (tournament.removedPlayers ?? []).map(player => ({ osuId: player.osuId, username: player.username })),
     poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
   }
 }

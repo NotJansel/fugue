@@ -185,6 +185,13 @@ const schema = `
     length_seconds  integer
   );
 
+  CREATE TABLE IF NOT EXISTS removed_players (
+    osu_id    text PRIMARY KEY,
+    -- The whole player as they were on the list, so a restore puts them back unchanged.
+    player    jsonb NOT NULL,
+    position  integer NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS sheet_config (
     -- 'qualifier', 'registration' or 'mappool' - different documents as a rule.
     kind         text PRIMARY KEY,

@@ -36,6 +36,11 @@ field breaks existing deployments.
   match existing players by osu! ID and then by name, since an unenriched import only has a `name:`
   placeholder. A `description` of `undefined` from `toPlayers` means "no column mapped - keep the
   one on file"; `null` means the cell was blank.
+- A player **removed by hand** (`POST /api/players/remove`) is kept whole in
+  `TournamentState.removedPlayers` (table `removed_players`), and both imports skip anyone who
+  matches one by osu! ID or name - otherwise the next sheet import would bring staff straight back.
+  Restoring puts them back at the bottom of the seeding. Their lobby scores stay on file and simply
+  match no player while they are removed.
 - Player imports **run in the background** (`startImport` in `import-progress.ts`). A full
   registration list takes minutes of osu! and Discord lookups, far past a reverse proxy's timeout (a
   504), so the route reads and checks the sheet, answers `ok.importStarted`, and the rest reports

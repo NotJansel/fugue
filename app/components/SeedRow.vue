@@ -17,6 +17,7 @@ defineProps<{
 const emit = defineEmits<{
   move: [toIndex: number]
   mode: [mode: CaptainMode]
+  remove: []
   dragstart: []
   drop: []
 }>()
@@ -129,6 +130,16 @@ const onDrop = () => {
           />
         </div>
       </UTooltip>
+
+      <UButton
+        icon="i-lucide-user-round-x"
+        size="xs"
+        color="error"
+        variant="ghost"
+        class="opacity-0 group-hover:opacity-100 transition-opacity"
+        :aria-label="t('seeding.remove')"
+        @click="emit('remove')"
+      />
     </template>
 
     <UBadge

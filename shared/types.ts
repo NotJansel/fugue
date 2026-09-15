@@ -269,6 +269,12 @@ export interface TournamentState {
   teamNames: Record<string, string>
   /** The qualifier mappool, in pool order. */
   mappool: QualifierMap[]
+  /**
+   * Players taken off the list by hand - staff who qualified on paper, say. Kept whole so a restore
+   * puts them back as they were, and so a later import recognises and skips them: without this, the
+   * next sheet import would simply bring them back.
+   */
+  removedPlayers: TournamentPlayer[]
   sheet?: SheetImportConfig | null
   /** Where the mappool was last imported from - a different document to `sheet` as a rule. */
   mappoolSheet?: MappoolSheetConfig | null
@@ -513,7 +519,14 @@ export interface DashboardState {
   schedule: ScheduleDto | null
   /** Every qualifier lobby on file, newest first. */
   lobbies: QualifierLobbyDto[]
+  /** Players an organiser took off the list. Empty for a guest. */
+  removedPlayers: RemovedPlayerDto[]
   poolRemaining: number
+}
+
+export interface RemovedPlayerDto {
+  osuId: string
+  username: string
 }
 
 /** What the dashboard shows when you paste a link, so columns can be mapped before importing. */

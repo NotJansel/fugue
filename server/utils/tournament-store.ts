@@ -101,13 +101,14 @@ interface SheetRow {
 
 /** Reads the whole tournament back into memory. Nothing else in the process queries these tables. */
 export async function loadTournament(): Promise<void> {
-  const [settings, players, rosterRows, teamNameRows, mappoolRows, sheetRows] = await Promise.all([
+  const [settings, players, rosterRows, teamNameRows, mappoolRows, sheetRows, removedRows] = await Promise.all([
     query<SettingsRow>('SELECT * FROM tournament_settings WHERE id'),
     query<PlayerRow>('SELECT * FROM players ORDER BY seed'),
     query<RosterRow>('SELECT captain_osu_id, player_osu_id, price FROM rosters ORDER BY captain_osu_id, position'),
     query<{ captain_osu_id: string, name: string }>('SELECT captain_osu_id, name FROM team_names'),
     query<MappoolRow>('SELECT * FROM mappool ORDER BY position'),
-    query<SheetRow>('SELECT * FROM sheet_config')
+    query<SheetRow>('SELECT * FROM sheet_config'),
+    query<{ player: TournamentPlayer }>('SELECT player FROM removed_players ORDER BY position')
   ])
 
   const rosters: Record<string, TeamMember[]> = {}
@@ -140,6 +141,7 @@ export async function loadTournament(): Promise<void> {
     rosters,
     teamNames: Object.fromEntries(teamNameRows.map(name => [name.captain_osu_id, name.name])),
     mappool: mappoolRows.map(readMap),
+    removedPlayers: removedRows.map(row => row.player),
     sheet: qualifier ? readSheet(qualifier) : null,
     mappoolSheet: mappoolSheet ? readMappoolSheet(mappoolSheet) : null,
     registrationSheet: registrationSheet ? readSheet(registrationSheet) : null
@@ -280,6 +282,15 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
     )
   }
 
+  await client.query('DELETE FROM removed_players')
+
+  const removed = valuesList(next.removedPlayers ?? [], (player: TournamentPlayer, position) => [
+    player.osuId, JSON.stringify(player), position
+  ])
+  if (removed) {
+    await client.query(`INSERT INTO removed_players (osu_id, player, position) VALUES ${removed.text}`, removed.values)
+  }
+
   await persistSheet(client, 'qualifier', next.sheet)
   await persistSheet(client, 'mappool', next.mappoolSheet)
   await persistSheet(client, 'registration', next.registrationSheet)
@@ -358,12 +369,39 @@ function existingPlayerLookup(players: TournamentPlayer[]): (imported: Tournamen
   return imported => byId.get(imported.osuId) ?? byName.get(imported.username.toLowerCase())
 }
 
+/** Rosters and team names cut down to the players in `players` - whoever else is gone, so is their team. */
+function prunedTo(current: TournamentState, players: TournamentPlayer[]): Pick<TournamentState, 'rosters' | 'teamNames'> {
+  const known = new Set(players.map(player => player.osuId))
+
+  const rosters: TournamentState['rosters'] = {}
+  for (const [captainOsuId, members] of Object.entries(current.rosters)) {
+    if (!known.has(captainOsuId)) continue
+
+    const kept = members.filter(member => known.has(member.osuId))
+    if (kept.length > 0) rosters[captainOsuId] = kept
+  }
+
+  const teamNames = Object.fromEntries(
+    Object.entries(current.teamNames).filter(([captainOsuId]) => known.has(captainOsuId))
+  )
+
+  return { rosters, teamNames }
+}
+
+/** Whether an imported row stands for a player an organiser took off the list. */
+const removedLookup = (current: TournamentState): (imported: TournamentPlayer) => boolean => {
+  const removed = existingPlayerLookup(current.removedPlayers ?? [])
+
+  return imported => removed(imported) != null
+}
+
 /**
  * Replaces the player list from a fresh import.
  *
  * Manual work is preserved wherever it can be: a player who is still in the sheet keeps their
  * Discord link (unless the sheet now supplies one), their captain override and their description
- * (unless the import maps a description column). Rosters are pruned to players that still exist.
+ * (unless the import maps a description column). Rosters are pruned to players that still exist,
+ * and anyone an organiser removed by hand stays removed however often the sheet lists them.
  */
 export function replacePlayers(
   players: TournamentPlayer[],
@@ -371,8 +409,9 @@ export function replacePlayers(
 ): Promise<TournamentState> {
   return update((current) => {
     const existingFor = existingPlayerLookup(current.players)
+    const isRemoved = removedLookup(current)
 
-    const merged = players.map((imported) => {
+    const merged = players.filter(imported => !isRemoved(imported)).map((imported) => {
       const existing = existingFor(imported)
       if (!existing) return imported
 
@@ -385,22 +424,55 @@ export function replacePlayers(
       }
     })
 
-    const known = new Set(merged.map(player => player.osuId))
-
-    const rosters: TournamentState['rosters'] = {}
-    for (const [captainOsuId, members] of Object.entries(current.rosters)) {
-      if (!known.has(captainOsuId)) continue
-
-      const kept = members.filter(member => known.has(member.osuId))
-      if (kept.length > 0) rosters[captainOsuId] = kept
-    }
-
-    const teamNames = Object.fromEntries(
-      Object.entries(current.teamNames).filter(([captainOsuId]) => known.has(captainOsuId))
-    )
-
-    return { ...current, players: merged, rosters, teamNames, sheet: sheet ?? current.sheet }
+    return { ...current, players: merged, ...prunedTo(current, merged), sheet: sheet ?? current.sheet }
   })
+}
+
+/**
+ * Takes a player off the list, and out of any roster or captaincy, keeping them aside so a later
+ * import does not bring them straight back. Returns whether there was such a player.
+ */
+export async function removePlayer(osuId: string): Promise<boolean> {
+  let removed = false
+
+  await update((current) => {
+    const player = current.players.find(candidate => candidate.osuId === osuId)
+    if (!player) return current
+
+    removed = true
+    const players = current.players.filter(candidate => candidate.osuId !== osuId)
+
+    return {
+      ...current,
+      players,
+      ...prunedTo(current, players),
+      removedPlayers: [...(current.removedPlayers ?? []).filter(kept => kept.osuId !== osuId), player]
+    }
+  })
+
+  return removed
+}
+
+/** Puts a removed player back, at the bottom of the seeding. Returns whether there was one to restore. */
+export async function restorePlayer(osuId: string): Promise<boolean> {
+  let restored = false
+
+  await update((current) => {
+    const player = (current.removedPlayers ?? []).find(candidate => candidate.osuId === osuId)
+    if (!player) return current
+
+    restored = true
+
+    return {
+      ...current,
+      players: current.players.some(candidate => candidate.osuId === osuId)
+        ? current.players
+        : [...current.players, player],
+      removedPlayers: current.removedPlayers.filter(candidate => candidate.osuId !== osuId)
+    }
+  })
+
+  return restored
 }
 
 export interface RegistrationResult {
@@ -421,7 +493,7 @@ export interface RegistrationResult {
  * is not the same as withdrawn.
  *
  * A player on file under a `name:` placeholder takes the real osu! ID once the sheet or enrichment
- * supplies one, and their roster and team name move with them.
+ * supplies one, and their roster and team name move with them. Anyone removed by hand is skipped.
  */
 export async function mergeRegistrations(
   registered: TournamentPlayer[],
@@ -431,11 +503,14 @@ export async function mergeRegistrations(
 
   await update((current) => {
     const existingFor = existingPlayerLookup(current.players)
+    const isRemoved = removedLookup(current)
     const replaced = new Map<string, TournamentPlayer>()
     const added: TournamentPlayer[] = []
     const rekeyed = new Map<string, string>()
 
     for (const incoming of registered) {
+      if (isRemoved(incoming)) continue
+
       const existing = existingFor(incoming)
 
       if (!existing) {

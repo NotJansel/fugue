@@ -29,6 +29,17 @@ const setMode = (osuId: string, mode: CaptainMode) => api('/api/players/captain'
 
 const toggleLock = (value: boolean) => api('/api/seeding/lock', { locked: value }, { quiet: true })
 
+/** The player whose removal is being confirmed, if any. */
+const removing = ref<PlayerDto | null>(null)
+
+async function remove() {
+  const player = removing.value
+  removing.value = null
+  if (!player) return
+
+  await api('/api/players/remove', { osuId: player.osuId })
+}
+
 /** Whether any result is on file to seed by - what makes the reseed button worth showing. */
 const hasResults = computed(() => players.value.some(player => player.zSum != null))
 
@@ -141,6 +152,7 @@ async function reseed() {
             :can-move-down="player.seed < players.length"
             @move="move(player.osuId, $event)"
             @mode="setMode(player.osuId, $event)"
+            @remove="removing = player"
             @dragstart="dragging = player"
             @drop="drop(player)"
           />
@@ -179,6 +191,7 @@ async function reseed() {
             :can-move-down="player.seed < players.length"
             @move="move(player.osuId, $event)"
             @mode="setMode(player.osuId, $event)"
+            @remove="removing = player"
             @dragstart="dragging = player"
             @drop="drop(player)"
           />
@@ -191,5 +204,30 @@ async function reseed() {
         </p>
       </section>
     </div>
+
+    <UModal
+      :open="removing != null"
+      :title="t('seeding.remove')"
+      :description="removing ? t('seeding.removeConfirm', { name: removing.username }) : ''"
+      @update:open="removing = $event ? removing : null"
+    >
+      <template #footer>
+        <div class="flex justify-end gap-2">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            @click="removing = null"
+          >
+            {{ t('common.cancel') }}
+          </UButton>
+          <UButton
+            color="error"
+            @click="remove"
+          >
+            {{ t('seeding.remove') }}
+          </UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

@@ -81,6 +81,9 @@ const applySingle = () => api('/api/purses/set', { discordId: singleDiscordId.va
  */
 const linked = computed(() => players.value.filter(player => player.discordId || player.discordUsername))
 
+const removed = computed(() => state.value?.removedPlayers ?? [])
+const restore = (osuId: string) => api('/api/players/restore', { osuId })
+
 const unlink = (osuId: string) => api('/api/links/unlink', { osuId })
 const setDiscordId = (osuId: string, discordId: string) =>
   api('/api/players/discord', { osuId, discordId: discordId || null })
@@ -341,6 +344,48 @@ const setDiscordId = (osuId: string, discordId: string) =>
           </div>
         </UCard>
       </div>
+
+      <UCard
+        v-if="removed.length"
+        variant="subtle"
+      >
+        <template #header>
+          <div>
+            <h2 class="font-display text-lg">
+              {{ t('setup.removed.title') }}
+            </h2>
+            <p class="mt-1 text-xs text-muted">
+              {{ t('setup.removed.hint') }}
+            </p>
+          </div>
+        </template>
+
+        <ul class="space-y-2">
+          <li
+            v-for="player in removed"
+            :key="player.osuId"
+            class="flex flex-wrap items-center gap-3 rounded-lg bg-elevated/40 px-3 py-2"
+          >
+            <PlayerAvatar
+              :osu-id="player.osuId"
+              :username="player.username"
+            />
+            <p class="min-w-0 flex-1 truncate text-sm font-medium">
+              {{ player.username }}
+            </p>
+            <UButton
+              size="xs"
+              color="neutral"
+              variant="subtle"
+              icon="i-lucide-undo-2"
+              :disabled="state?.config.seedingLocked"
+              @click="restore(player.osuId)"
+            >
+              {{ t('setup.removed.restore') }}
+            </UButton>
+          </li>
+        </ul>
+      </UCard>
 
       <UCard variant="subtle">
         <template #header>

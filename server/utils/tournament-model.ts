@@ -30,6 +30,7 @@ export const emptyTournament = (): TournamentState => ({
   rosters: {},
   teamNames: {},
   mappool: [],
+  removedPlayers: [],
   sheet: null,
   mappoolSheet: null,
   registrationSheet: null

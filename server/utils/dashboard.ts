@@ -6,7 +6,6 @@ import { currentImportProgress, lastImportOutcome } from './import-progress'
 import { allLobbies, allLobbyScores } from './lobby-store'
 import { allOsuLinks } from './osu-link-store'
 import { getAllBalances, getAllHolds } from './purse-store'
-import { scheduleDto } from './schedule-store'
 import {
   captainCount,
   captains,
@@ -188,7 +187,6 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     registrationSheet: guest ? null : tournament.registrationSheet ?? null,
     importProgress: currentImportProgress(),
     importOutcome: guest ? null : lastImportOutcome(),
-    schedule: scheduleDto(guest),
     lobbies: lobbyDtos(),
     removedPlayers: guest
       ? []

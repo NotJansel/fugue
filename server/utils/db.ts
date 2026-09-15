@@ -194,6 +194,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS sheet_config (
     -- 'qualifier', 'registration' or 'mappool' - different documents as a rule.
+    -- A 'schedule' row is left over from a feature since removed and is dropped below.
     kind         text PRIMARY KEY,
     url          text NOT NULL,
     sheet_name   text,
@@ -203,6 +204,8 @@ const schema = `
     stage        text
   );
 
+  DELETE FROM sheet_config WHERE kind = 'schedule';
+
   CREATE TABLE IF NOT EXISTS purses (
     -- Keyed by Discord ID: bids and purses are the one half of this that Discord owns.
     discord_id  text PRIMARY KEY,
@@ -211,7 +214,7 @@ const schema = `
 
   CREATE TABLE IF NOT EXISTS qualifier_lobbies (
     match_id         bigint PRIMARY KEY,
-    -- The schedule row the lobby was named after, or the match ID for one added by link.
+    -- The lobby ID out of the match name, or the match ID for one that carries none.
     row_key          text NOT NULL,
     name             text NOT NULL,
     started_at       bigint NOT NULL,

@@ -9,7 +9,6 @@ import { checkOsuApi } from '../utils/osu-api'
 import { loadOsuLinks } from '../utils/osu-link-store'
 import { loadPurses } from '../utils/purse-store'
 import { startLobbyWatch, stopLobbyWatch } from '../utils/qualifier-lobbies'
-import { loadSchedule, scheduleSections, stopScheduleRefresh } from '../utils/schedule-store'
 import { loadTournament } from '../utils/tournament-store'
 
 /**
@@ -28,11 +27,10 @@ export default defineNitroPlugin((nitro) => {
 
   const ready = migrate()
     .then(importLegacyData)
-    .then(() => Promise.all([loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies(), loadSchedule()]))
+    .then(() => Promise.all([loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies()]))
     .then(() => Promise.all([startBot(), checkOsuApi()]))
-    // After the stores, so the first poll already knows which lobbies are still to be read; and
-    // whether or not a schedule is set, since lobbies can be added by link.
-    .then(() => startLobbyWatch(scheduleSections))
+    // After the stores, so the first poll already knows which lobbies are still to be read.
+    .then(startLobbyWatch)
     .catch((error) => {
       console.error('[boot] Startup failed:', error)
 
@@ -44,7 +42,6 @@ export default defineNitroPlugin((nitro) => {
 
   nitro.hooks.hook('close', async () => {
     shutdownAuction()
-    stopScheduleRefresh()
     stopLobbyWatch()
     await ready.catch(() => {})
     await stopBot()

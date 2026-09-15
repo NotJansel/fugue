@@ -8,14 +8,10 @@ const links = computed(() => [
   { label: t('nav.teams'), icon: 'i-lucide-users', to: '/teams' },
   { label: t('nav.pool'), icon: 'i-lucide-user-round-search', to: '/pool' },
   { label: t('nav.mappool'), icon: 'i-lucide-disc-3', to: '/mappool' },
-  // Only once there is a schedule to show - for most of a tournament's setup there is none.
-  ...(state.value?.schedule?.sections.length
-    ? [{ label: t('nav.schedule'), icon: 'i-lucide-calendar-clock', to: '/schedule' }]
-    : []),
   { label: t('nav.setup'), icon: 'i-lucide-settings', to: '/setup' }
 ])
 
-// Up to seven destinations, a brand, a status pill, a language picker and an account all have to share one
+// Up to six destinations, a brand, a status pill, a language picker and an account all have to share one
 // line. The icons earn their place in the drawer, where there is room; across the top the labels are
 // enough, and dropping them keeps the bar from overflowing on a laptop screen.
 const barLinks = computed(() => links.value.map(({ icon: _icon, ...link }) => link))

@@ -116,23 +116,13 @@ with osu! still links it. A Discord ID already on file is never replaced. A late
 still contains. The description shows on the seeding list, on the dashboard while the player is up
 for auction, and on the Discord auction card.
 
-## Schedule
-
-Paste the link to the schedule tab (the address bar link, which names the tab) into **Schedule
-sheet** in the Setup tab, and a **Schedule** page appears. Every schedule on that tab is shown - the
-qualifier lobbies, and each round's matches once the organisers fill them in - found by the heading
-over it and the header row under it. Numbered slot columns (`S1` to `S12`) show as one list of names,
-start times are converted to each viewer's time zone when the header names the sheet's (`Zeit
-(CEST)`), and a signed-in player's own lobby is highlighted. The website re-reads the sheet every 5
-minutes on its own; **Refresh now** skips the wait.
-
 ## Qualifier results and Z-sum seeding
 
-Results come from the lobbies themselves. A qualifier lobby named `TP: (Qualifiers) vs (Lobby <row
-ID>)` is found in the osu! match history around its scheduled start, read again every minute while it
-is open and once more when it closes, and every score set in it is kept. Any other lobby - named
-differently, or played outside the watched window - can be added by its osu! match link at the bottom
-of the **Mappool** page, and removed there again.
+Results come from the lobbies themselves. The osu! match history is scanned every minute for lobbies
+named `TP: (Qualifiers) vs (Lobby <ID>)`; each one found is read again every minute while it is open
+and once more when it closes, and every score set in it is kept. A lobby named differently, or opened
+while the dashboard was down for longer than it looks back, can be added by its osu! match link at the
+bottom of the **Mappool** page, and removed there again.
 
 Only maps in the qualifier pool count: a game is matched to a slot by beatmap ID (and by mods where
 the same map is in the pool twice), so warm-ups are ignored. Each player has two runs, and their best

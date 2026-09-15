@@ -131,8 +131,8 @@ export interface LobbyScore {
 /**
  * A qualifier lobby osu! knows about, found by name in the match history or added by link.
  *
- * `key` is the schedule row it belongs to (see `lobbyKey` in `server/utils/qualifier-lobbies.ts`); a
- * lobby whose name fits no row is keyed by its match ID instead, and still has its scores read.
+ * `key` is the lobby ID out of its name (see `lobbyKey` in `server/utils/qualifier-lobbies.ts`); a
+ * lobby whose name carries none is keyed by its match ID instead, and still has its scores read.
  */
 export interface QualifierLobby {
   matchId: number
@@ -427,52 +427,6 @@ export interface ConfigDto {
   botConnected: boolean
 }
 
-/**
- * One column of a published schedule. `list` gathers numbered slot columns - S1 to S12, Team 1 and
- * Team 2 - into one, since they read as a list of names rather than as twelve columns.
- */
-export interface ScheduleColumn {
-  label: string
-  role: 'id' | 'date' | 'time' | 'text' | 'list'
-}
-
-export interface ScheduleRow {
-  /** One entry per column: a `list` column's names, anything else as zero or one string. */
-  cells: string[][]
-  /** Start as epoch millis, when the date, the time and the sheet's time zone could all be read. */
-  startsAt: number | null
-  /** The osu! lobby a qualifier row was played in, once one named after its ID has been found. */
-  lobby?: ScheduleLobby | null
-}
-
-/** A qualifier lobby as osu! reports it, which beats the sheet's start time for running or over. */
-export interface ScheduleLobby {
-  matchId: number
-  startedAt: number
-  /** `null` while the lobby is still open. */
-  endedAt: number | null
-}
-
-/** One schedule from the sheet: everything under one heading, like "Qualifiers Schedule" or "FINALS". */
-export interface ScheduleSection {
-  title: string
-  /** Qualifier lobbies rather than matches, going by the heading. */
-  qualifiers: boolean
-  columns: ScheduleColumn[]
-  /** In start order; rows whose start could not be read follow in sheet order. */
-  rows: ScheduleRow[]
-}
-
-/** The published schedule. `null` in `DashboardState` while no schedule sheet is set. */
-export interface ScheduleDto {
-  /** The sheet link - `null` for a guest, like every other sheet link. */
-  url: string | null
-  sections: ScheduleSection[]
-  fetchedAt: number | null
-  /** Why the last refresh failed; the sections are then still the last good ones. `null` for a guest. */
-  error: ApiError | null
-}
-
 /** Which lookup a running import is in: osu! players first, then Discord handles. */
 export type ImportPhase = 'osu' | 'discord'
 
@@ -516,7 +470,6 @@ export interface DashboardState {
   registrationSheet: RegistrationSheetConfig | null
   importProgress: ImportProgress | null
   importOutcome: ImportOutcome | null
-  schedule: ScheduleDto | null
   /** Every qualifier lobby on file, newest first. */
   lobbies: QualifierLobbyDto[]
   /** Players an organiser took off the list. Empty for a guest. */

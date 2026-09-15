@@ -1,10 +1,9 @@
-import type { LobbyScore, QualifierLobby, ScheduleLobby, ScheduleSection } from '#shared/types'
+import type { LobbyScore, QualifierLobby } from '#shared/types'
 import { emitChange } from './bus'
 import {
   allLobbies,
   allLobbyScores,
   lobbyByMatchId,
-  lobbyForKey,
   recordScores,
   removeLobby,
   saveLobby
@@ -15,28 +14,28 @@ import { fetchMatchHistory, fetchMatchPage, matchIdIn, osuApiReady } from './osu
 import { getTournament, reseedByZSum } from './tournament-store'
 
 /**
- * The osu! lobbies qualifier rows are played in, and the scores set in them.
+ * The osu! lobbies the qualifiers are played in, and the scores set in them.
  *
- * Referees name a lobby `TP: (Qualifiers) vs (Lobby 1SO12)`, and the part after `Lobby` is the row's
- * ID in the schedule. osu! knows when a lobby actually opened and closed, which the sheet's start time
- * can only guess at - a lobby started late is running, and one finished early is over. And osu! has
- * every score set in it, which is where the qualifier results come from: each lobby is read again
- * every minute while it is open and once more when it closes, and the seeding follows the results
- * (`seedingByZSum`) until an organiser locks it.
+ * Referees name a lobby `TP: (Qualifiers) vs (Lobby 1SO12)`, and that is how they are found: the
+ * match history is scanned for the name every minute. osu! has every score set in a lobby, which is
+ * where the qualifier results come from: each lobby is read again every minute while it is open and
+ * once more when it closes, and the seeding follows the results (`seedingByZSum`) until an organiser
+ * locks it.
  *
- * The match history holds every tournament lobby on the server, around a thousand an hour, so it is
- * only read while a qualifier row is close to its start, and then only back to the newest match
- * already seen. A lobby the scan missed - named differently, played on another day - is added by
- * link instead (`addLobby`), and read the same way.
+ * The match history holds every tournament lobby on the server, around a thousand an hour, so each
+ * scan only goes back to the newest match the last one saw - a page a minute once running. A cold
+ * start looks back a few hours and no further; a lobby from before that is added by link instead
+ * (`addLobby`), and read the same way.
  */
 const POLL_MS = 60_000
 
-/** Qualifiers started after this, so nothing older is looked for however the sheet reads. */
+/** Qualifiers started after this, so nothing older is looked for however far a scan could reach. */
 const QUALIFIERS_FROM = Date.UTC(2026, 8, 8)
 
-/** A row is watched from this long before its start... */
-const LEAD_MS = 30 * 60_000
-/** ...until this long after, which covers a lobby that started late and overran. */
+/** How far back a cold start looks - `MAX_PAGES` bounds it as well, at fifty matches a page. */
+const LOOKBACK_MS = 3 * 60 * 60_000
+
+/** An open lobby stops being asked about this long after it opened, whatever osu! still says. */
 const TRAIL_MS = 2 * 60 * 60_000
 
 /** A backfill of the history stops here even short of its target, rather than hammering the API. */
@@ -47,10 +46,10 @@ const MAX_EVENT_PAGES = 10
 
 const LOBBY_NAME = /^TP:\s*\(Qualifiers\)\s*vs\s*\(Lobby\s*([^)]+)\)\s*$/i
 
-/** `Lobby 12`, `#12` and `12` all name the same row. */
+/** `Lobby 12`, `#12` and `12` all name the same lobby. */
 export const lobbyKey = (id: string): string => id.toLowerCase().replace(/^lobby/, '').replace(/[\s#]/g, '')
 
-/** The key a lobby gets when its name fits no schedule row. */
+/** The key a lobby gets when its name carries no lobby ID. */
 const matchKey = (matchId: number): string => `mp:${matchId}`
 
 const keyFor = (match: OsuMatch): string => {
@@ -64,18 +63,11 @@ let newestSeen: number | null = null
 let timer: NodeJS.Timeout | null = null
 let inFlight: Promise<void> | null = null
 
-/** What the schedule needs to know about a row's lobby: nothing about how far it has been read. */
-export function lobbyFor(id: string): ScheduleLobby | null {
-  const lobby = lobbyForKey(lobbyKey(id))
-
-  return lobby ? { matchId: lobby.matchId, startedAt: lobby.startedAt, endedAt: lobby.endedAt } : null
-}
-
-export function startLobbyWatch(sections: () => ScheduleSection[]): void {
+export function startLobbyWatch(): void {
   stopLobbyWatch()
 
   const tick = () => {
-    inFlight ??= poll(sections()).catch((error) => {
+    inFlight ??= poll().catch((error) => {
       console.warn('[lobbies] Could not look qualifier lobbies up:', error)
     }).finally(() => {
       inFlight = null
@@ -92,20 +84,11 @@ export function stopLobbyWatch(): void {
   timer = null
 }
 
-async function poll(sections: ScheduleSection[]): Promise<void> {
+async function poll(): Promise<void> {
   if (!osuApiReady()) return
 
   const now = Date.now()
-  const starts = sections
-    .filter(section => section.qualifiers)
-    .flatMap(section => section.rows.flatMap(row => row.startsAt ?? []))
-    .filter(start => start - LEAD_MS <= now && now <= start + TRAIL_MS)
-
-  let changed = false
-
-  if (starts.length > 0) {
-    changed = await scan(Math.max(Math.min(...starts) - LEAD_MS, QUALIFIERS_FROM))
-  }
+  let changed = await scan(Math.max(now - LOOKBACK_MS, QUALIFIERS_FROM))
 
   // Every lobby still open is asked about again, to catch scores as they land and the lobby closing;
   // one never read at all - just found, or added by link - is read whatever its age. A lobby nobody
@@ -243,8 +226,8 @@ export interface AddedLobby {
 /**
  * Puts a lobby on file by its link or match ID, and reads it straight away.
  *
- * This is for lobbies the scan cannot find: one named differently, or played outside the watched
- * window. A name that does fit still lands the lobby on its schedule row.
+ * This is for lobbies the scan cannot find: one named differently, or opened further back than a
+ * cold start looks.
  */
 export async function addLobby(input: string): Promise<AddedLobby | 'invalid' | 'unknown' | 'unavailable'> {
   if (!osuApiReady()) return 'unavailable'

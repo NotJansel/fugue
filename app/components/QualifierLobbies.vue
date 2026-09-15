@@ -2,7 +2,7 @@
 /**
  * The qualifier lobbies osu! has been asked about, and how much of each has been read into results.
  *
- * Most turn up on their own - the server scans the match history around every scheduled start - so
+ * Most turn up on their own - the server scans the match history for them every minute - so
  * this is mainly a place to see that they did, and to add one by link when they did not.
  */
 const { state, isAdmin, api } = useDashboard()

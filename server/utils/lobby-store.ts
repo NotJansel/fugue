@@ -99,20 +99,6 @@ export const allLobbies = (): QualifierLobby[] =>
 
 export const lobbyByMatchId = (matchId: number): QualifierLobby | null => lobbies.get(matchId) ?? null
 
-/**
- * The lobby a schedule row was played in. A lobby remade after a crash keeps its name, so the newest
- * match under the key is the one being played - the older one's scores still count.
- */
-export function lobbyForKey(key: string): QualifierLobby | null {
-  let found: QualifierLobby | null = null
-
-  for (const lobby of lobbies.values()) {
-    if (lobby.key === key && (found == null || lobby.matchId > found.matchId)) found = lobby
-  }
-
-  return found
-}
-
 export const allLobbyScores = (): LobbyScore[] =>
   [...scores.values()].flatMap(game => [...game.values()])
 

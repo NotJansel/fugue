@@ -41,7 +41,7 @@ export type BidResult
     /** Winning would leave too little to fill the roster to the smallest legal team. */
     | 'BREAKS_RESERVE'
 
-const BID_TIMEOUT_MS = 15_000
+const BID_TIMEOUT_MS = 20_000
 
 interface AuctionState {
   messageId: string

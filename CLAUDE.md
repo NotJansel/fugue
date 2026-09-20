@@ -152,7 +152,10 @@ field breaks existing deployments.
   that Discord account to own a captain, so a bid can never be placed as someone else.
 - The Discord auction card is a hand-built Components V2 payload (`server/bot/client.ts`), sent
   through `client.rest` rather than the builders, so the same object serves the initial post and every
-  bid update.
+  bid update. When one ends, `announce` posts the result and the winning captain's roster as it now
+  stands - not the purses, which used to be a `<@id>` a line and pinged every captain on the server
+  each time anybody won anybody. Both that message and the card set `allowed_mentions`: a team name
+  and a sheet description are whatever somebody typed, and an `@everyone` in one must not carry.
 - Everything osu! goes through **API v2** on one credential, `OSU_CLIENT_ID`/`OSU_CLIENT_SECRET`.
   `utils/osu-oauth.ts` uses it as an authorization-code flow to sign users in; `utils/osu-api.ts`
   uses it as a client-credentials grant (`public` scope) for player and beatmap lookups, caching the

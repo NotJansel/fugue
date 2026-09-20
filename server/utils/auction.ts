@@ -2,7 +2,7 @@ import { Routes } from 'discord.js'
 import type { AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
-import { getAllBalances, getBalance, release, reserve, settleHold } from './purse-store'
+import { getBalance, release, reserve, settleHold } from './purse-store'
 import { captainForDiscordId, reserveFor } from './tournament-model'
 import { getTournament, recordSale } from './tournament-store'
 
@@ -104,18 +104,43 @@ async function updateMessage(auction: AuctionState, bidStatus: string | null): P
   }
 }
 
-async function announce(auction: AuctionState, result: string): Promise<void> {
+/**
+ * The winning captain's team as it stands after the sale, captain first and then whoever they have
+ * bought, in the order they bought them.
+ *
+ * What used to go here was every purse in the tournament, one `<@id>` a line, which pinged every
+ * captain on the server each time anybody won anybody. The team is both quieter and the thing the
+ * channel actually wants to see: who just got whom, and how much room is left on that roster.
+ */
+function rosterSummary(winnerDiscordId: string): string | null {
+  const state = getTournament()
+  const captain = captainForDiscordId(state, winnerDiscordId)
+  if (!captain) return null
+
+  const names = new Map(state.players.map(player => [player.osuId, player.username]))
+  const members = state.rosters[captain.osuId] ?? []
+  const lines = [
+    `${captain.username} (captain)`,
+    ...members.map(member => `${names.get(member.osuId) ?? member.osuId} - ${member.price}€`)
+  ]
+
+  const name = state.teamNames[captain.osuId] ?? captain.username
+
+  return `**${name}** (${lines.length}/${state.teamSize}):\n${lines.map(line => `- ${line}`).join('\n')}`
+}
+
+async function announce(auction: AuctionState, result: string, roster: string | null): Promise<void> {
   const client = getClient()
   if (!client) return
 
-  const balances = Object.entries(getAllBalances())
-  const purseSummary = balances.length === 0
-    ? 'No purses set.'
-    : balances.sort((a, b) => b[1] - a[1]).map(([id, amount]) => `<@${id}>: ${amount}`).join('\n')
-
   try {
     await client.rest.post(Routes.channelMessages(auction.channelId), {
-      body: { content: `${result}\n\nPurses:\n${purseSummary}` }
+      body: {
+        content: roster ? `${result}\n\n${roster}` : result,
+        // The winner is worth a ping; a team name is whatever an organiser typed, and an
+        // `@everyone` in one must not carry.
+        allowed_mentions: { parse: ['users'] }
+      }
     })
   } catch (error) {
     console.error(`[auction] Failed to announce the result in ${auction.channelId}:`, error)
@@ -160,7 +185,7 @@ async function end(auction: AuctionState): Promise<void> {
     ? `Auction ended! Winner: ${winnerId ? `<@${winnerId}>` : 'No one'} with bid ${auction.highestBid}.${notes}`
     : 'Auction ended! No bids were placed.'
 
-  await announce(auction, result)
+  await announce(auction, result, winnerId != null ? rosterSummary(winnerId) : null)
 }
 
 /**

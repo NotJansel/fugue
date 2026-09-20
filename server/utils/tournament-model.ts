@@ -6,7 +6,7 @@ import type {
   TournamentState,
   TournamentWarning
 } from '#shared/types'
-import { difficultyMask, formatMods, parseMods } from './mods'
+import { difficultyMask, formatMods, normalizeMods, parseMods } from './mods'
 
 export const DEFAULT_TEAM_SIZE = 4
 
@@ -167,11 +167,15 @@ export function qualifierMaps(state: TournamentState): QualifierMap[] {
 export const isFreeMod = (map: QualifierMap): boolean => /^(fm|tb)/i.test(map.label.trim())
 
 /**
- * The multiplier a tournament gives a mod combination on a freemod slot, looked up under its
- * canonical spelling so `HDEZ` and `EZHD` are the same rule. 1 when none is set.
+ * The multiplier a tournament gives a mod combination on a freemod slot.
+ *
+ * The combination is normalised first (`normalizeMods`), so the only two keys that can ever be looked
+ * up are `EZ` and `EZHD`: every other choice - HD, HR, DT, HDHR, nothing at all - is scored as played,
+ * and an EZ run is scored the same however else it was dressed up. Looked up under the canonical
+ * spelling, so `HDEZ` and `EZHD` are the same rule. 1 when none is set.
  */
 export function modMultiplier(state: TournamentState, ownMods: string): number {
-  const key = formatMods(parseMods(ownMods))
+  const key = formatMods(normalizeMods(parseMods(ownMods)))
   const factor = key === '' ? undefined : state.modMultipliers?.[key]
 
   return factor != null && factor > 0 ? factor : 1
@@ -188,6 +192,15 @@ export interface QualifierResults {
   scores: Record<string, Record<string, MapScore>>
   /** Everyone with at least one result on a qualifier slot. */
   standings: Record<string, QualifierStanding>
+  /**
+   * Per qualifier slot, the field's mean and sample standard deviation - the two numbers every
+   * Z-score on that slot comes out of. Absent for a slot with too few scores to deviate. Kept so a
+   * caller can work out the Z of a score the results do not list, an unplayed map counting as 0,
+   * without re-deriving the field: the seeding export needs exactly that, per mod bracket.
+   */
+  mapStats: Record<string, { mean: number, sd: number }>
+  /** Everyone the deviations are taken over, in seeding order: the field with at least one result. */
+  scored: string[]
 }
 
 /** Mean and *sample* standard deviation, which is what the seeding method is defined over. */
@@ -206,8 +219,9 @@ function deviation(values: number[]): { mean: number, sd: number } | null {
  *
  * Each slot's scores come from the lobbies first: every game played on the slot's beatmap, in any
  * lobby on file, and a player's *best* of them - each player has two runs, and only the better one
- * counts, whichever run it was. On a freemod slot the tournament's multiplier for the player's own
- * mods is applied first, so a 1.8x EZ run is compared - and ranked - at 1.8 times what osu! reported.
+ * counts, whichever run it was. On a freemod slot the player's own mods are normalised to EZ, EZHD or
+ * nothing (`normalizeMods`) and the tournament's multiplier for that is applied first, so a 1.8x EZ
+ * run is compared - and ranked - at 1.8 times what osu! reported while an HDHR run counts as played.
  * A slot no lobby has played yet falls back to the sheet column it is bound to, so a tournament that
  * only ever imports a sheet reads exactly as before. A game on a beatmap outside the qualifier pool -
  * a warm-up - matches no slot and is ignored.
@@ -299,9 +313,11 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
 
   const scores: Record<string, Record<string, MapScore>> = {}
   const standings: Record<string, QualifierStanding> = {}
+  const mapStats: Record<string, { mean: number, sd: number }> = {}
 
   for (const [mapId, { source, values }] of perMap) {
     const stats = qualifiers.has(mapId) ? deviation(field.map(osuId => values.get(osuId)?.value ?? 0)) : null
+    if (stats) mapStats[mapId] = stats
     const zOf = (value: number): number | null => stats ? (value - stats.mean) / stats.sd : null
 
     const ranked = [...values.entries()].sort((a, b) => b[1].value - a[1].value)
@@ -336,7 +352,7 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
     }
   }
 
-  return { scores, standings }
+  return { scores, standings, mapStats, scored: field }
 }
 
 /**

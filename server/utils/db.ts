@@ -136,6 +136,8 @@ const schema = `
     sheet_seed    integer,
     pp_raw        double precision,
     pp_rank       integer,
+    -- Two letters, as osu! spells them; what the seeding export writes as a flag.
+    country_code  text,
     captain_mode  text NOT NULL DEFAULT 'AUTO',
     description   text,
     -- Sheet columns not bound to a field, including the per-map scores.
@@ -145,6 +147,7 @@ const schema = `
   -- Added after the first release, so a database created before them gets the columns here.
   ALTER TABLE players ADD COLUMN IF NOT EXISTS description text;
   ALTER TABLE players ADD COLUMN IF NOT EXISTS discord_username text;
+  ALTER TABLE players ADD COLUMN IF NOT EXISTS country_code text;
 
   CREATE UNIQUE INDEX IF NOT EXISTS players_seed_idx ON players (seed);
 

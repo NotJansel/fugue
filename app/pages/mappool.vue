@@ -203,6 +203,33 @@ const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.
             {{ refreshing ? t('mappool.refreshing') : t('mappool.refresh') }}
           </UButton>
 
+          <!-- Plain links, not fetches: the browser saves the file the route already names itself. -->
+          <UButton
+            icon="i-lucide-download"
+            size="sm"
+            color="neutral"
+            variant="subtle"
+            to="/api/export/maps.csv"
+            external
+            download
+            :disabled="!maps.length"
+          >
+            {{ t('mappool.exportMaps') }}
+          </UButton>
+
+          <UButton
+            icon="i-lucide-download"
+            size="sm"
+            color="neutral"
+            variant="subtle"
+            to="/api/export/scores.csv"
+            external
+            download
+            :disabled="!scored.length"
+          >
+            {{ t('mappool.exportScores') }}
+          </UButton>
+
           <template v-if="draft">
             <UButton
               icon="i-lucide-x"

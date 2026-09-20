@@ -128,3 +128,15 @@ export function modsFor(typed: string, label: string): string {
 
   return formatMods(modsFromSlotLabel(label) ?? Mods.NONE)
 }
+
+/**
+ * The mods a freemod score is *scored* under, rather than the ones it was played with.
+ *
+ * Seeding normalises mods away: HD, HR, DT and the rest are compared at face value, because osu!'s
+ * own multipliers already pay for them. Only EZ is worth a tournament multiplier - it costs far more
+ * score than it gives back - and EZHD is worth telling apart from plain EZ, since HD pays part of it
+ * back. So an EZ run keeps `EZ` plus its HD bit and loses everything else (`EZDT` scores as `EZ`,
+ * `EZHDDT` as `EZHD`), and a run without EZ normalises to no mods at all.
+ */
+export const normalizeMods = (mods: number): number =>
+  (mods & Mods.EZ) === 0 ? Mods.NONE : Mods.EZ | (mods & Mods.HD)

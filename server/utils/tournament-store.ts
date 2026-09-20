@@ -59,6 +59,7 @@ interface PlayerRow {
   sheet_seed: number | null
   pp_raw: number | null
   pp_rank: number | null
+  country_code: string | null
   captain_mode: string
   description: string | null
   extra: Record<string, string>
@@ -157,6 +158,7 @@ const readPlayer = (row: PlayerRow): TournamentPlayer => ({
   sheetSeed: row.sheet_seed,
   ppRaw: row.pp_raw,
   ppRank: row.pp_rank,
+  countryCode: row.country_code,
   captainMode: row.captain_mode as CaptainMode,
   description: row.description,
   extra: row.extra ?? {}
@@ -235,13 +237,14 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   const players = valuesList(next.players, (player: TournamentPlayer, seed) => [
     player.osuId, seed, player.username, player.discordId ?? null, player.discordUsername ?? null,
     player.qualScore ?? null, player.sheetSeed ?? null, player.ppRaw ?? null, player.ppRank ?? null,
-    player.captainMode, player.description ?? null, JSON.stringify(player.extra ?? {})
+    player.countryCode ?? null, player.captainMode, player.description ?? null,
+    JSON.stringify(player.extra ?? {})
   ])
   if (players) {
     await client.query(
       `INSERT INTO players (
          osu_id, seed, username, discord_id, discord_username, qual_score, sheet_seed, pp_raw, pp_rank,
-         captain_mode, description, extra
+         country_code, captain_mode, description, extra
        ) VALUES ${players.text}`,
       players.values
     )
@@ -419,6 +422,7 @@ export function replacePlayers(
         ...imported,
         discordId: imported.discordId ?? existing.discordId,
         discordUsername: imported.discordUsername ?? existing.discordUsername,
+        countryCode: imported.countryCode ?? existing.countryCode,
         captainMode: imported.captainMode === 'AUTO' ? existing.captainMode : imported.captainMode,
         description: imported.description === undefined ? existing.description : imported.description
       }
@@ -426,6 +430,25 @@ export function replacePlayers(
 
     return { ...current, players: merged, ...prunedTo(current, merged), sheet: sheet ?? current.sheet }
   })
+}
+
+/**
+ * Fills in country codes for players that had none, `osu! ID -> code`.
+ *
+ * Nothing else needs a flag, so this is not worth a lookup of its own during an import: the seeding
+ * export asks the osu! API for whoever is still missing one and hands the answers here, where they
+ * stay for the next export. A code already on file is left alone, and a write that would change
+ * nothing is skipped rather than pushing a no-op state at every dashboard.
+ */
+export async function saveCountryCodes(codes: Record<string, string>): Promise<void> {
+  const missing = state.players.some(player => !player.countryCode && codes[player.osuId])
+  if (!missing) return
+
+  await update(current => ({
+    ...current,
+    players: current.players.map(player =>
+      player.countryCode || !codes[player.osuId] ? player : { ...player, countryCode: codes[player.osuId] })
+  }))
 }
 
 /**
@@ -451,6 +474,35 @@ export async function removePlayer(osuId: string): Promise<boolean> {
   })
 
   return removed
+}
+
+/**
+ * Puts a player on the list by hand, at the bottom of the seeding.
+ *
+ * The way in for anyone no sheet knows about: a stand-in for a test run, a late sign-up, a player an
+ * import could not resolve. They arrive with no qualifier result, so the next reseed sorts them to
+ * the bottom on their own; nothing else here is special-cased for them.
+ *
+ * Adding someone an organiser had removed takes them off the removed list too - otherwise the next
+ * import would drop them again - which makes this the same thing as a restore for that player.
+ * `false` when they are already on the list, since adding them twice is not a thing.
+ */
+export async function addPlayer(player: TournamentPlayer): Promise<boolean> {
+  let added = false
+
+  await update((current) => {
+    if (current.players.some(candidate => candidate.osuId === player.osuId)) return current
+
+    added = true
+
+    return {
+      ...current,
+      players: [...current.players, player],
+      removedPlayers: (current.removedPlayers ?? []).filter(candidate => candidate.osuId !== player.osuId)
+    }
+  })
+
+  return added
 }
 
 /** Puts a removed player back, at the bottom of the seeding. Returns whether there was one to restore. */
@@ -535,6 +587,7 @@ export async function mergeRegistrations(
         discordUsername: incoming.discordUsername ?? existing.discordUsername,
         ppRaw: incoming.ppRaw ?? existing.ppRaw,
         ppRank: incoming.ppRank ?? existing.ppRank,
+        countryCode: incoming.countryCode ?? existing.countryCode,
         description: incoming.description === undefined ? existing.description : incoming.description
       })
     }

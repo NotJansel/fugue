@@ -564,7 +564,7 @@ export function toPlayers(
 }
 
 /**
- * Fills in osu! IDs, pp and rank from the legacy osu! API, one player at a time.
+ * Fills in osu! IDs, pp, rank and country from the osu! API, one player at a time.
  *
  * Calls are spaced out to stay well inside the API's rate limit; `onProgress` is invoked after each
  * player so the dashboard can show how far along the import is. Players that can't be resolved are
@@ -590,7 +590,14 @@ export async function enrichPlayers(
     if (index < players.length - 1) await delay(ENRICH_DELAY_MS)
 
     enriched.push(fetched
-      ? { ...player, osuId: fetched.userId, username: fetched.username, ppRaw: fetched.ppRaw, ppRank: fetched.ppRank }
+      ? {
+          ...player,
+          osuId: fetched.userId,
+          username: fetched.username,
+          ppRaw: fetched.ppRaw,
+          ppRank: fetched.ppRank,
+          countryCode: fetched.countryCode ?? player.countryCode
+        }
       : player)
   }
 

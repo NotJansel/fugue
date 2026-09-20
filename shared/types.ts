@@ -31,6 +31,11 @@ export interface TournamentPlayer {
   sheetSeed?: number | null
   ppRaw?: number | null
   ppRank?: number | null
+  /**
+   * Two-letter country code as osu! spells it ("DE", "US"), filled in by enrichment and by the CSV
+   * export when it is missing. What the seeding export writes as a flag.
+   */
+  countryCode?: string | null
   captainMode: CaptainMode
   /** What the player wrote about themselves on the sheet. Shown with the seeding and at auction. */
   description?: string | null
@@ -253,9 +258,10 @@ export interface TournamentState {
    */
   secondRun: boolean
   /**
-   * Score multipliers on freemod slots, by the player's own mod combination in canonical spelling:
-   * `{ EZ: 1.8, EZHD: 2 }`. Applied to the raw score osu! reports, on top of the game's own; a
-   * combination not listed counts as written.
+   * Score multipliers on freemod slots: `{ EZ: 1.8, EZHD: 2 }`. The player's own mods are normalised
+   * to `EZ`, `EZHD` or nothing first (`normalizeMods`), so those are the only two keys that can ever
+   * apply - every other pick is scored as osu! reported it, which is what "seeding normalises mods"
+   * means here. An EZ run with anything else on top counts as EZ, or as EZHD when it had HD.
    */
   modMultipliers: Record<string, number>
   /** Set to pin the captain count instead of deriving it from `teamSize`. */

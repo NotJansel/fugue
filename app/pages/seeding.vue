@@ -43,6 +43,21 @@ async function remove() {
 /** Whether any result is on file to seed by - what makes the reseed button worth showing. */
 const hasResults = computed(() => players.value.some(player => player.zSum != null))
 
+/** An osu! ID or username typed in to put a player on the list without an import. */
+const newPlayer = ref('')
+const addingPlayer = ref(false)
+
+async function addPlayer() {
+  addingPlayer.value = true
+
+  try {
+    await api('/api/players/add', { user: newPlayer.value })
+    newPlayer.value = ''
+  } finally {
+    addingPlayer.value = false
+  }
+}
+
 const reseeding = ref(false)
 
 async function reseed() {
@@ -98,6 +113,33 @@ async function reseed() {
           @update:model-value="toggleLock($event)"
         />
       </div>
+    </div>
+
+    <div
+      v-if="editable"
+      class="flex flex-wrap items-end gap-3"
+    >
+      <UFormField
+        :label="t('seeding.addPlayer')"
+        :hint="t('seeding.addPlayerHint')"
+        class="flex-1 min-w-64"
+        size="sm"
+      >
+        <UInput
+          v-model="newPlayer"
+          :placeholder="t('seeding.addPlayerPlaceholder')"
+          class="w-full"
+          @keyup.enter="addPlayer"
+        />
+      </UFormField>
+      <UButton
+        icon="i-lucide-user-plus"
+        :loading="addingPlayer"
+        :disabled="!newPlayer"
+        @click="addPlayer"
+      >
+        {{ t('common.add') }}
+      </UButton>
     </div>
 
     <UAlert

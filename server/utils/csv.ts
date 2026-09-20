@@ -52,3 +52,17 @@ export function parseCsv(input: string): string[][] {
 
   return rows
 }
+
+/** Fields that have to be quoted, because otherwise the reader would take them apart. */
+const NEEDS_QUOTES = /[",\r\n]/
+
+/**
+ * Writes rows back out as RFC 4180 CSV, with the CRLF line breaks the standard asks for.
+ *
+ * Only what has to be quoted is - a team name with a comma in it, say - so a seeding export stays
+ * readable in a text editor rather than being a wall of quotation marks.
+ */
+export const formatCsv = (rows: string[][]): string =>
+  rows
+    .map(row => row.map(field => NEEDS_QUOTES.test(field) ? `"${field.replaceAll('"', '""')}"` : field).join(','))
+    .join('\r\n') + '\r\n'

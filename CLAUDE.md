@@ -40,7 +40,10 @@ field breaks existing deployments.
   `TournamentState.removedPlayers` (table `removed_players`), and both imports skip anyone who
   matches one by osu! ID or name - otherwise the next sheet import would bring staff straight back.
   Restoring puts them back at the bottom of the seeding. Their lobby scores stay on file and simply
-  match no player while they are removed.
+  match no player while they are removed. `POST /api/players/add` is the way in for one person - a
+  late entry, or a field to try something on without a sheet: the osu! lookup gives them their ID,
+  name and country, they go to the bottom, and being added takes them off `removedPlayers`. Like
+  every other list change it is refused while `seedingLocked`.
 - Player imports **run in the background** (`startImport` in `import-progress.ts`). A full
   registration list takes minutes of osu! and Discord lookups, far past a reverse proxy's timeout (a
   504), so the route reads and checks the sheet, answers `ok.importStarted`, and the rest reports
@@ -54,9 +57,13 @@ field breaks existing deployments.
   is matched to lobby scores by username. So re-pointing a slot, re-importing the sheet or importing
   players after their lobby needs nothing re-read. A lobby score keeps the player's **own** mods
   (`own_mods`: score mods minus the game's minus NF); on a freemod slot (`isFreeMod`: label `FM…`
-  or `TB…`) the score is multiplied by `tournament_settings.mod_multipliers[canonical mods]` before
-  the best run is picked, ranked or Z-scored. Rows written before `own_mods` existed are NULL, and
-  `loadLobbies` clears the watermark of their lobbies so they are read again once.
+  or `TB…`) the score is multiplied by `tournament_settings.mod_multipliers[…]` before the best run
+  is picked, ranked or Z-scored. **Mods are normalised first** (`normalizeMods`): an EZ run keeps EZ
+  plus its HD bit and loses the rest, anything without EZ becomes no mods at all, so `EZ` and `EZHD`
+  are the only two keys that can ever be looked up and every other pick is scored as osu! reported
+  it. A multiplier configured for, say, `HR` is therefore dead config. Rows written before `own_mods`
+  existed are NULL, and `loadLobbies` clears the watermark of their lobbies so they are read again
+  once.
 - **Seeding follows the Z-sum** (`seedingByZSum`): per qualifier slot, `(score − mean) / sample sd`
   over the field of everyone with at least one result, an unplayed map counting as 0; ties go to the
   raw total, then to the current order. `qualifier-lobbies.ts` calls `reseedByZSum` after every
@@ -73,6 +80,15 @@ field breaks existing deployments.
   a lobby with `latest_event_id` null is read once whatever its age, which is how one added by
   link (`POST /api/lobbies/add`) or found already closed gets its scores. The store never emits a
   change: the watcher reseeds first and emits once, so results and seeding never disagree on screen.
+- The two **CSV exports** (`server/utils/seeding-export.ts`, `GET /api/export/scores.csv` and
+  `/api/export/maps.csv`, both admin-only) write the qualifier pool in the shape a bracket tool
+  reads, not the shape the dashboard shows. Solo qualifiers, so every row is a team of one and the
+  size column is always 1. `scores.csv` is the field, minus anyone with no qualifier result; the
+  overall seed is the *list order* renumbered 1..N, while the mod-bracket seeds (slots grouped by the
+  letters their label starts with) and the per-map seeds are ranks worked out there and then, an
+  unplayed map counting as 0. Flags are the one thing nothing else needs, so `players.country_code`
+  is filled by enrichment and, for whoever is still missing one, by the export itself
+  (`fetchCountryCodes`, fifty IDs a request); a lookup that fails just writes a blank flag.
 - `POST /api/mappool` replaces the pool wholesale and fills in beatmap
   metadata, skipping slots whose beatmap ID *and* mods have not changed. `POST /api/mappool/refresh`
   re-asks about every slot regardless.

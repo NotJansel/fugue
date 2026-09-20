@@ -26,6 +26,8 @@ export interface OsuUser {
   username: string
   ppRaw: number
   ppRank: number
+  /** Two-letter country code, or `null` when the account has none set. */
+  countryCode: string | null
 }
 
 /** The parts of a beatmap the mappool page shows: what it is, and what it looks like. */
@@ -44,6 +46,7 @@ export interface BeatmapInfo {
 interface V2User {
   id?: number
   username?: string
+  country_code?: string | null
   statistics?: { pp?: number | null, global_rank?: number | null }
 }
 
@@ -286,8 +289,39 @@ export async function fetchOsuUser(user: string): Promise<OsuUser | null> {
     userId: String(found.id),
     username: found.username ?? String(found.id),
     ppRaw: found.statistics?.pp ?? 0,
-    ppRank: found.statistics?.global_rank ?? 0
+    ppRank: found.statistics?.global_rank ?? 0,
+    countryCode: found.country_code?.toUpperCase() || null
   }
+}
+
+/** How many IDs `GET /users` takes in one go. */
+const USERS_PER_LOOKUP = 50
+
+/**
+ * The country codes of a list of osu! IDs, `osu! ID -> code`.
+ *
+ * `GET /users` answers for up to fifty accounts at a time, which is what makes this worth having
+ * beside `fetchOsuUser`: the seeding export needs a flag for a whole field and would otherwise spend
+ * a request - and a rate-limit slot - per player. IDs the API does not answer for are simply absent,
+ * and a failed request leaves the whole batch out rather than throwing; the export writes a blank
+ * flag for anyone missing.
+ */
+export async function fetchCountryCodes(osuIds: string[]): Promise<Record<string, string>> {
+  const numeric = [...new Set(osuIds.filter(id => /^\d+$/.test(id)))]
+  const codes: Record<string, string> = {}
+
+  for (let at = 0; at < numeric.length; at += USERS_PER_LOOKUP) {
+    const batch = numeric.slice(at, at + USERS_PER_LOOKUP)
+    const query = batch.map(id => `ids[]=${id}`).join('&')
+    const found = await api<{ users?: V2User[] }>(`/users?${query}`)
+
+    for (const user of found?.users ?? []) {
+      const code = user.country_code?.toUpperCase()
+      if (user.id != null && code) codes[String(user.id)] = code
+    }
+  }
+
+  return codes
 }
 
 /**

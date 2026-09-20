@@ -252,11 +252,15 @@ const schema = `
     osu_id  text NOT NULL,
     map_id  text NOT NULL,
     -- As osu! would have reported it, mods and all; normalising it is the dashboard's business.
-    score   bigint NOT NULL,
+    -- Not an integer: what an organiser types is kept exactly as typed, decimals and all.
+    score   double precision NOT NULL,
     -- The whole combination it was played with, the slot's own included. Empty for none.
     mods    text NOT NULL DEFAULT '',
     PRIMARY KEY (osu_id, map_id)
   );
+
+  -- Started out as a bigint, which quietly rounded anything typed with a decimal on it.
+  ALTER TABLE manual_scores ALTER COLUMN score TYPE double precision;
 
   CREATE TABLE IF NOT EXISTS osu_links (
     discord_id    text PRIMARY KEY,

@@ -47,8 +47,8 @@ const quals = computed(() => {
     .filter((entry): entry is { map: typeof entry.map, score: MapScore } => entry.score != null)
 })
 
-/** A sheet cell is shown as written; a lobby score is a plain integer and gets the viewer's grouping. */
-const cellText = (cell: MapScore): string => cell.source === 'lobby' ? number(cell.value) : cell.display
+/** A sheet cell is shown as written; a read or typed-in score is a number and gets the viewer's grouping. */
+const cellText = (cell: MapScore): string => cell.source === 'sheet' ? cell.display : number(cell.value)
 
 /** Who is on the block after this one - the pool in seeding order, minus everyone already sold. */
 const upNext = computed(() =>

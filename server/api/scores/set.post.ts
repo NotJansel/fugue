@@ -75,7 +75,8 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     throw apiError(400, 'A score has to be a number, and not a negative one.', 'err.score.invalid')
   }
 
-  const score = Math.round(body.score)
+  // Kept exactly as typed - a score is not rounded on the way in, whatever is on the end of it.
+  const score = body.score
 
   await setManualScore(osuId, mapId, score, body.mods ?? '')
   await publish()

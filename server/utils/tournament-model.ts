@@ -350,7 +350,9 @@ export function qualifierResults(
 
     values.set(manual.osuId, {
       value,
-      display: String(Math.round(value)),
+      // Exact, not rounded: a typed-in score is kept as it was typed, and what the dashboard puts on
+      // screen is the viewer's own grouping of `value` rather than this.
+      display: String(value),
       mods: own,
       multiplier,
       source: 'manual'

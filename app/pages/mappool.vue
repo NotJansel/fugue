@@ -122,8 +122,8 @@ const scored = computed(() =>
   visible.value.filter(map => lobbyScored.value.has(map.id) || players.value.some(player => player.mapScores[map.id]))
 )
 
-/** A sheet cell is shown as written; a lobby score is a plain integer and gets the viewer's grouping. */
-const cellText = (cell: MapScore): string => cell.source === 'lobby' ? number(cell.value) : cell.display
+/** A sheet cell is shown as written; a read or typed-in score is a number and gets the viewer's grouping. */
+const cellText = (cell: MapScore): string => cell.source === 'sheet' ? cell.display : number(cell.value)
 
 const results = computed(() => {
   if (scored.value.length === 0) return []
@@ -461,7 +461,7 @@ async function saveCell(score: number | null) {
             <UInputNumber
               v-model="cellScore"
               :min="0"
-              :step="1000"
+              :step="1"
               class="w-full"
               :ui="{ base: 'tnum font-display' }"
             />

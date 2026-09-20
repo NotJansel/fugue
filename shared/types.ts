@@ -87,7 +87,8 @@ export interface MapScore {
   value: number
   /**
    * The cell as the sheet wrote it, so separators and decimals show up the way organisers expect.
-   * A score read from a lobby is a plain integer, which the dashboard formats itself.
+   * A score read from a lobby, or typed in by an organiser, is a plain number the dashboard formats
+   * itself.
    */
   display: string
   rank: number

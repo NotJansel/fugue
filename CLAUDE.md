@@ -78,8 +78,13 @@ field breaks existing deployments.
   turns up. That watermark is the newest *settled* event, held back to just before a game still in
   progress, so a game that finishes later is still picked up. Lobbies and scores are persisted;
   a lobby with `latest_event_id` null is read once whatever its age, which is how one added by
-  link (`POST /api/lobbies/add`) or found already closed gets its scores. The store never emits a
-  change: the watcher reseeds first and emits once, so results and seeding never disagree on screen.
+  link (`POST /api/lobbies/add`) or found already closed gets its scores. `POST /api/lobbies/refresh`
+  (`rereadLobbies`) reads every lobby again from its first event - for scores that were read before
+  the way they are read changed, which is the one thing a later poll can never go back far enough to
+  fix. It is *not* how a scoring rule is applied: multipliers are worked out on every dashboard build
+  from the mods on file. The poll and a re-read share one queue (`reads`), so they never page through
+  the same lobby at once. The store never emits a change: the watcher reseeds first and emits once,
+  so results and seeding never disagree on screen.
 - The two **CSV exports** (`server/utils/seeding-export.ts`, `GET /api/export/scores.csv` and
   `/api/export/maps.csv`, both admin-only) write the qualifier pool in the shape a bracket tool
   reads, not the shape the dashboard shows. Solo qualifiers, so every row is a team of one and the
@@ -116,7 +121,10 @@ field breaks existing deployments.
   `minBidIncrement`/`maxBidIncrement` and `secondRun`. The neutral defaults - no field cut, no
   reserve, no ceiling on a raise - leave a tournament that predates them behaving as it did.
   `field()` in `tournament-model.ts` is what every derivation starts from, so a qualifier below the
-  cut keeps their seed and results but is out of the captain count, the pool and the auction.
+  cut keeps their seed and results but is out of the captain count, the pool and the auction. The one
+  exception is a **`FORCE` captain**, picked off the whole list rather than off the field: someone
+  with no qualifier result has no Z-sum and is reseeded to the bottom, and a cut would otherwise take
+  their captaincy away again. `AUTO` captains still come out of the field.
 - Every rule a bid has to pass lives in `submitBid`, not in the route: team not yet full, inside the
   min/max step (measured from the starting price for an opening bid, from the standing bid after
   that), affordable, and still leaving `reserveFor()` - what the captain needs to fill their roster

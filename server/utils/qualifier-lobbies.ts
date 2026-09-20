@@ -11,6 +11,7 @@ import {
 import { Mods, formatMods } from './mods'
 import type { OsuGame, OsuGameScore, OsuMatch } from './osu-api'
 import { fetchMatchHistory, fetchMatchPage, matchIdIn, osuApiReady } from './osu-api'
+import { serialiser } from './store-queue'
 import { getTournament, reseedByZSum } from './tournament-store'
 
 /**
@@ -63,11 +64,20 @@ let newestSeen: number | null = null
 let timer: NodeJS.Timeout | null = null
 let inFlight: Promise<void> | null = null
 
+/**
+ * Everything that reads osu!, one thing at a time.
+ *
+ * The minute poll and a re-read asked for by hand would otherwise page through the same lobby at the
+ * same time, each stopping at the watermark the other had just moved - harmless for what ends up on
+ * file, since scores are written by game and player, but twice the requests for the same answers.
+ */
+const reads = serialiser()
+
 export function startLobbyWatch(): void {
   stopLobbyWatch()
 
   const tick = () => {
-    inFlight ??= poll().catch((error) => {
+    inFlight ??= reads(poll).catch((error) => {
       console.warn('[lobbies] Could not look qualifier lobbies up:', error)
     }).finally(() => {
       inFlight = null
@@ -160,9 +170,12 @@ const toLobbyScore = (matchId: number, game: OsuGame, score: OsuGameScore): Lobb
  * Reads what a lobby has to say since it was last read: the games finished in the meantime, and
  * whether it has closed. Pages backwards from the newest events until an event already on file, or
  * the first event of the lobby, turns up. Returns whether anything on file changed.
+ *
+ * `from` is where that paging stops, the lobby's own watermark unless a caller says otherwise; a
+ * re-read passes `null` to page all the way back to the lobby's first event.
  */
-async function readLobby(lobby: QualifierLobby): Promise<boolean> {
-  const stopAt = lobby.latestEventId
+async function readLobby(lobby: QualifierLobby, from = lobby.latestEventId): Promise<boolean> {
+  const stopAt = from
   const games: OsuGame[] = []
   let match: OsuMatch | null = null
   let settled: number | null = null
@@ -255,6 +268,42 @@ export async function addLobby(input: string): Promise<AddedLobby | 'invalid' | 
   await publish()
 
   return { lobby: lobbyByMatchId(matchId) ?? lobby, added: true }
+}
+
+/** How a re-read went: how many lobbies were asked about, and whether any of it was news. */
+export interface RereadResult {
+  lobbies: number
+  changed: boolean
+}
+
+/**
+ * Reads every lobby on file again, from its first event rather than from where the last read stopped.
+ *
+ * A read normally starts at the lobby's watermark, which is exactly right while a lobby is being
+ * played and useless once the way a score is *read* changes - the player's own mods were not always
+ * kept, and a row written before they were has no way of getting them but a fresh read. Dropping the
+ * watermark for one pass is what this is: the same paging, back to the first event, writing whatever
+ * differs from what is on file. Scores are keyed by game and player, so re-reading a lobby that has
+ * nothing new to say changes nothing at all.
+ *
+ * Note that this is *not* what applies a scoring rule: multipliers are worked out on every dashboard
+ * build from the mods on file, so a changed rule takes effect without re-reading anything.
+ */
+export async function rereadLobbies(): Promise<RereadResult | 'unavailable'> {
+  if (!osuApiReady()) return 'unavailable'
+
+  return await reads(async () => {
+    const known = allLobbies()
+    let changed = false
+
+    for (const lobby of known) {
+      if (await readLobby(lobby, null)) changed = true
+    }
+
+    if (changed) await publish()
+
+    return { lobbies: known.length, changed }
+  })
 }
 
 /** Takes a lobby and its scores off file - a warm-up lobby added by mistake, say. */

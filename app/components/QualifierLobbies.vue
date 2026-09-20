@@ -25,6 +25,19 @@ async function add() {
   }
 }
 
+const rereading = ref(false)
+
+/** Reads every lobby again from the top - for scores that were read before they were read right. */
+async function reread() {
+  rereading.value = true
+
+  try {
+    await api('/api/lobbies/refresh')
+  } finally {
+    rereading.value = false
+  }
+}
+
 /** The lobby whose removal is being confirmed, if any. */
 const removing = ref<number | null>(null)
 
@@ -82,6 +95,17 @@ const matchLink = (matchId: number) => `https://osu.ppy.sh/community/matches/${m
           @click="add"
         >
           {{ t('lobbies.add') }}
+        </UButton>
+        <UButton
+          icon="i-lucide-refresh-cw"
+          color="neutral"
+          variant="subtle"
+          :title="t('lobbies.rereadHint')"
+          :loading="rereading"
+          :disabled="!lobbies.length"
+          @click="reread"
+        >
+          {{ rereading ? t('lobbies.rereading') : t('lobbies.reread') }}
         </UButton>
       </div>
 

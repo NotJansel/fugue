@@ -94,16 +94,22 @@ export function captainCount(state: TournamentState): number {
  * The captains, in seeding order: everyone marked `FORCE` first, then the highest seeds still on
  * `AUTO` until the target count is reached. `EXCLUDE` players are never picked, which is what makes
  * "top seed, but not a captain" expressible.
+ *
+ * `FORCE` is taken off the whole list rather than off the field: an organiser saying someone is a
+ * captain settles it, and a captain who never played the qualifiers - a stand-in, or someone brought
+ * in to lead a team rather than to qualify for one - has no Z-sum, so the reseed puts them at the
+ * bottom of the list where a field cut would otherwise quietly drop them again. `AUTO` still only
+ * picks out of the field, since that is the whole point of the cut.
  */
 export function captains(state: TournamentState): TournamentPlayer[] {
   const taking = field(state)
   const target = captainCount(state)
-  const forced = taking.filter(player => player.captainMode === 'FORCE')
+  const forced = state.players.filter(player => player.captainMode === 'FORCE')
   const remaining = Math.max(target - forced.length, 0)
   const auto = taking.filter(player => player.captainMode === 'AUTO').slice(0, remaining)
   const chosen = new Set([...forced, ...auto].map(player => player.osuId))
 
-  return taking.filter(player => chosen.has(player.osuId))
+  return state.players.filter(player => chosen.has(player.osuId))
 }
 
 /** Players that are not captains - the pool the auction draws from. */

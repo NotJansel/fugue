@@ -149,17 +149,30 @@ export const normalizeMods = (mods: number): number =>
  * same slot compares the mods rather than the play. Dividing by this puts every pick back on the
  * same footing.
  *
- * Freemod in practice is HD, HR, HDHR, EZ and EZHD, so those are what this has to be right about;
- * HDHR is the tournament's own figure and not HD times HR. EZ is deliberately absent - it is paid
- * for by `modMultipliers` instead - and so is anything else, which is left exactly as osu! reported
- * it rather than adjusted by a number nobody has stated.
+ * These are the tournament's own figures, not a product of the single mods - HDHR is 1.17 where HD
+ * times HR would be 1.166. EZ is deliberately absent: it is paid for by `modMultipliers` instead.
+ * So is anything else, FL among them, which is left exactly as osu! reported it rather than adjusted
+ * by a number nobody has stated.
  */
 const OSU_MULTIPLIERS: Record<string, number> = {
   HD: 1.06,
   HR: 1.1,
-  HDHR: 1.12,
+  HDHR: 1.17,
   DT: 1.2
 }
+
+/** The bits that can carry a multiplier. Anything else would only spoil the spelling of the key. */
+const SCORING_BITS = Mods.EZ | Mods.HD | Mods.HR | Mods.DT | Mods.HT | Mods.FL
+
+/**
+ * The part of a combination that decides what a score was worth.
+ *
+ * A lobby forces NF and a player may have SD or PF on, none of which osu! pays for; left in, they
+ * would spell a key ("NFHR") no table has ever heard of and quietly leave the score unadjusted. NC
+ * is DT as far as score goes and is counted as such.
+ */
+export const scoringMods = (mods: number): number =>
+  ((mods & Mods.NC) !== 0 ? mods | Mods.DT : mods) & SCORING_BITS
 
 /** What osu! already paid for `mods`, or 1 for a combination with no stated figure. */
 export const osuMultiplier = (mods: number): number => OSU_MULTIPLIERS[formatMods(mods)] ?? 1

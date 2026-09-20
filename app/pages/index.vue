@@ -132,8 +132,7 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
                     <span
                       v-if="entry.score.mods"
                       class="ms-1 text-primary"
-                    >{{ entry.score.mods }}<template v-if="entry.score.multiplier !== 1">
-                      ×{{ number(entry.score.multiplier, 2) }}</template></span>
+                    >{{ entry.score.mods }}</span>
                   </span>
                 </div>
               </div>

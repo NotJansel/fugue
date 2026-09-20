@@ -101,9 +101,9 @@ export interface MapScore {
   /** The player's own mods on the run that counts, beyond what the slot forces - what a freemod slot shows. */
   mods: string
   /**
-   * What `value` was multiplied by for those mods: the tournament's rate for an EZ run, and the
-   * reciprocal of osu!'s own multiplier - so below 1 - for every other pick, which is what puts
-   * them all on the same footing. 1 when neither applies.
+   * What `value` was multiplied by to bring it back to 1x: the tournament's rate for an EZ run, and
+   * the reciprocal of osu!'s own multiplier - so below 1 - for every other combination. 1 for a
+   * score set unmodded, and for one read off a sheet, whose mods nobody knows.
    */
   multiplier: number
 }
@@ -128,8 +128,9 @@ export interface LobbyScore {
   /** Mods the game was played with plus the player's own, canonical ("HDDT"), empty for none. */
   mods: string
   /**
-   * The player's own mods beyond the game's, NF left out - what they chose on a freemod slot and
-   * what a score multiplier goes by. Canonical, empty for none.
+   * The player's own mods beyond the game's, NF left out - what they chose on a freemod slot, and
+   * all the results have to show, since the slot's own mods go without saying. Canonical, empty for
+   * none. What a score is *normalised* by is `mods`, the whole set it was played with.
    */
   ownMods: string
   passed: boolean

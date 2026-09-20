@@ -6,7 +6,7 @@ import type {
   TournamentState,
   TournamentWarning
 } from '#shared/types'
-import { difficultyMask, formatMods, normalizeMods, osuMultiplier, parseMods } from './mods'
+import { difficultyMask, formatMods, normalizeMods, osuMultiplier, parseMods, scoringMods } from './mods'
 
 export const DEFAULT_TEAM_SIZE = 4
 
@@ -167,23 +167,22 @@ export function qualifierMaps(state: TournamentState): QualifierMap[] {
 }
 
 /**
- * Whether a slot lets players pick their own mods: the free-mod bracket, and a tiebreaker, which is
- * played the same way. These are the slots a score multiplier applies on.
- */
-export const isFreeMod = (map: QualifierMap): boolean => /^(fm|tb)/i.test(map.label.trim())
-
-/**
- * What a freemod score is multiplied by before it is compared with anything else.
+ * What a score is multiplied by before it is compared with anything else.
+ *
+ * Every score, on every slot, is brought back to what it would have been worth at 1x - a forced-mod
+ * slot as much as a freemod one, so a DT map's numbers can be read beside a no-mod map's rather than
+ * only against each other. The mods asked about are the whole set the score was played with, the
+ * lobby's and the player's together.
  *
  * Two different things, either side of EZ. An EZ run - `EZ` or `EZHD` after `normalizeMods`, so an
  * EZ run is scored the same however else it was dressed up - takes the tournament's own rate out of
  * `modMultipliers`, because what EZ is worth is a rule nobody but the organisers can settle. Every
- * other pick is *normalised*: osu! already paid HD 1.06, HR 1.1 and HDHR 1.12 before the score ever
- * reached us, so the factor is the reciprocal of that and what is left is the play rather than the
- * mods. A combination with no stated figure divides by 1 and is compared exactly as it arrived.
+ * other combination is *normalised*: osu! already paid HD 1.06, HR 1.1, HDHR 1.17 and DT 1.2 before
+ * the score ever reached us, so the factor is the reciprocal of that and what is left is the play
+ * rather than the mods. A combination with no stated figure divides by 1 and stays as it arrived.
  */
-export function modMultiplier(state: TournamentState, ownMods: string): number {
-  const played = parseMods(ownMods)
+export function modMultiplier(state: TournamentState, mods: string): number {
+  const played = scoringMods(parseMods(mods))
   const key = formatMods(normalizeMods(played))
 
   if (key === '') return 1 / osuMultiplier(played)
@@ -231,9 +230,9 @@ function deviation(values: number[]): { mean: number, sd: number } | null {
  *
  * Each slot's scores come from the lobbies first: every game played on the slot's beatmap, in any
  * lobby on file, and a player's *best* of them - each player has two runs, and only the better one
- * counts, whichever run it was. On a freemod slot `modMultiplier` is applied first, so a 1.8x EZ run
- * is compared - and ranked - at 1.8 times what osu! reported, while an HDHR run has the 1.12 osu!
- * already paid for it divided back out.
+ * counts, whichever run it was. `modMultiplier` is applied first, on every slot, so what is compared
+ * is what the play would have been worth at 1x: an HDHR run has the 1.17 osu! already paid for it
+ * divided back out, and a 1.8x EZ run is ranked at 1.8 times what osu! reported.
  * A slot no lobby has played yet falls back to the sheet column it is bound to, so a tournament that
  * only ever imports a sheet reads exactly as before. A game on a beatmap outside the qualifier pool -
  * a warm-up - matches no slot and is ignored.
@@ -293,7 +292,7 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
     let entry = perMap.get(slot.id)
     if (!entry) perMap.set(slot.id, entry = { source: 'lobby', values: new Map() })
 
-    const multiplier = isFreeMod(slot) ? modMultiplier(state, score.ownMods) : 1
+    const multiplier = modMultiplier(state, score.mods)
     const value = score.score * multiplier
 
     const best = entry.values.get(osuId)

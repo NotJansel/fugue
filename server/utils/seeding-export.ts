@@ -87,8 +87,8 @@ function ranks(values: number[]): number[] {
  *
  * Only the field takes part - anyone below the cut keeps their results on the dashboard but is not in
  * the bracket - and only players with a qualifier result to their name are written, since a row of
- * zeroes is not a seeding. Scores are the ones the seeding goes by: a freemod multiplier is already
- * in them. A map a team never played is a 0, and is ranked as one, which is how the Z-sum counts it.
+ * zeroes is not a seeding. Scores are the ones the seeding goes by, normalised to what the play
+ * would have been worth at 1x. A map a team never played is a 0, and is ranked as one, which is how the Z-sum counts it.
  *
  * The overall seeding is this tournament's own - the order of the list, which follows the Z-sum
  * while the seeding is unlocked and follows the organiser once it isn't - numbered 1..N over the

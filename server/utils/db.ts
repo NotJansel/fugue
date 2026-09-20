@@ -118,7 +118,7 @@ const schema = `
     seeding_locked          boolean NOT NULL,
     default_starting_bid    integer NOT NULL,
     default_max_bid         integer NOT NULL,
-    -- Freemod score multipliers by mod combination, e.g. {"EZ": 1.8}.
+    -- What EZ is worth, by mod combination: only EZ and EZHD apply, e.g. {"EZ": 1.8}.
     mod_multipliers         jsonb NOT NULL DEFAULT '{}'::jsonb
   );
 

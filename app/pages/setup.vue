@@ -14,7 +14,7 @@ const defaultMaxBid = ref(0)
 const minBidIncrement = ref(1)
 const maxBidIncrement = ref(0)
 
-/** The freemod multiplier table as rows, so a combination can be typed before its factor is. */
+/** The EZ multiplier table as rows, so a combination can be typed before its factor is. */
 const multipliers = ref<{ mods: string, factor: number }[]>([])
 
 const addMultiplier = () => {

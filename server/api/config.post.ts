@@ -17,7 +17,7 @@ interface Body {
   minBidIncrement?: number | null
   maxBidIncrement?: number | null
   secondRun?: boolean | null
-  /** Freemod score multipliers by mod combination; the whole table, replacing what is on file. */
+  /** What EZ is worth, by mod combination; the whole table, replacing what is on file. */
   modMultipliers?: Record<string, number> | null
 }
 

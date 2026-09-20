@@ -361,9 +361,8 @@ const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.
                     variant="subtle"
                     size="xs"
                     class="ms-1 align-middle"
-                    :title="cell.multiplier !== 1 ? `× ${number(cell.multiplier, 2)}` : undefined"
                   >
-                    {{ cell.mods }}<template v-if="cell.multiplier !== 1"> ×{{ number(cell.multiplier, 2) }}</template>
+                    {{ cell.mods }}
                   </UBadge>
                 </span>
                 <span

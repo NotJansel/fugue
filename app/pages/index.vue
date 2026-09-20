@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MapScore } from '#shared/types'
+import type { MapScore, QualifierMap } from '#shared/types'
 
 const { state, auction, isAdmin, api, players } = useDashboard()
 const { t } = useLang()
@@ -46,6 +46,10 @@ const quals = computed(() => {
     .map(map => ({ map, score: player.mapScores[map.id] }))
     .filter((entry): entry is { map: typeof entry.map, score: MapScore } => entry.score != null)
 })
+
+/** The beatmap's own background, the same one the mappool cards are built on. */
+const coverFor = (map: QualifierMap): string | null =>
+  map.beatmapsetId ? `https://assets.ppy.sh/beatmaps/${map.beatmapsetId}/covers/cover.jpg` : null
 
 /** A sheet cell is shown as written; a read or typed-in score is a number and gets the viewer's grouping. */
 const cellText = (cell: MapScore): string => cell.source === 'sheet' ? cell.display : number(cell.value)
@@ -104,38 +108,6 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
               >
                 {{ auction.description }}
               </p>
-
-              <div
-                v-if="quals.length"
-                class="space-y-1.5 pt-1"
-              >
-                <p class="text-[11px] uppercase tracking-wider text-muted">
-                  {{ t('auction.quals') }}
-                  <span
-                    v-if="onBlock?.zSum != null"
-                    class="ms-2 tnum text-toned"
-                  >{{ t('seeding.zSum', { value: number(onBlock.zSum, 2) }) }}</span>
-                </p>
-
-                <div class="flex flex-wrap gap-1.5">
-                  <span
-                    v-for="entry in quals"
-                    :key="entry.map.id"
-                    class="rounded-md bg-elevated/50 px-2 py-1 text-xs tnum"
-                  >
-                    <span class="text-muted">{{ entry.map.label }}</span>
-                    <span class="ms-1.5">{{ cellText(entry.score) }}</span>
-                    <span
-                      class="ms-1"
-                      :class="entry.score.rank === 1 ? 'text-secondary' : 'text-muted'"
-                    >#{{ entry.score.rank }}</span>
-                    <span
-                      v-if="entry.score.mods"
-                      class="ms-1 text-primary"
-                    >{{ entry.score.mods }}</span>
-                  </span>
-                </div>
-              </div>
             </div>
 
             <CountdownRing
@@ -181,6 +153,61 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
               </p>
             </div>
           </div>
+
+          <template v-if="quals.length">
+            <USeparator class="my-5" />
+
+            <div class="space-y-2">
+              <p class="text-[11px] uppercase tracking-wider text-muted">
+                {{ t('auction.quals') }}
+                <span
+                  v-if="onBlock?.zSum != null"
+                  class="ms-2 tnum text-toned"
+                >{{ t('seeding.zSum', { value: number(onBlock.zSum, 2) }) }}</span>
+              </p>
+
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                <div
+                  v-for="entry in quals"
+                  :key="entry.map.id"
+                  class="relative overflow-hidden rounded-lg border border-default/50 bg-elevated/30"
+                  :title="entry.map.title ?? undefined"
+                >
+                  <div
+                    v-if="coverFor(entry.map)"
+                    class="absolute inset-0 bg-cover bg-center opacity-25"
+                    :style="{ backgroundImage: `url(${coverFor(entry.map)})` }"
+                  />
+                  <!-- The same veil the mappool cards use: darkest where the text starts, thinning
+                       out to the right so the map itself still shows. -->
+                  <div class="absolute inset-0 bg-gradient-to-r from-default/95 via-default/85 to-default/60" />
+
+                  <div class="relative space-y-0.5 p-3">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="font-display text-sm text-secondary">{{ entry.map.label }}</span>
+                      <UBadge
+                        v-if="entry.score.mods"
+                        color="primary"
+                        variant="subtle"
+                        size="xs"
+                      >
+                        {{ entry.score.mods }}
+                      </UBadge>
+                    </div>
+                    <p class="font-display text-xl tnum leading-tight">
+                      {{ cellText(entry.score) }}
+                    </p>
+                    <p
+                      class="text-xs tnum"
+                      :class="entry.score.rank === 1 ? 'text-secondary' : 'text-muted'"
+                    >
+                      #{{ entry.score.rank }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
 
           <template
             v-if="isAdmin"

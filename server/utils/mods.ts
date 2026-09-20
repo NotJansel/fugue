@@ -132,11 +132,34 @@ export function modsFor(typed: string, label: string): string {
 /**
  * The mods a freemod score is *scored* under, rather than the ones it was played with.
  *
- * Seeding normalises mods away: HD, HR, DT and the rest are compared at face value, because osu!'s
- * own multipliers already pay for them. Only EZ is worth a tournament multiplier - it costs far more
- * score than it gives back - and EZHD is worth telling apart from plain EZ, since HD pays part of it
- * back. So an EZ run keeps `EZ` plus its HD bit and loses everything else (`EZDT` scores as `EZ`,
- * `EZHDDT` as `EZHD`), and a run without EZ normalises to no mods at all.
+ * EZ is the one pick a tournament pays for itself: it costs far more score than osu! gives back, so
+ * the rate is a rule of the tournament rather than something to be normalised away, and EZHD is
+ * worth telling apart from plain EZ since HD pays part of it back. An EZ run therefore keeps `EZ`
+ * plus its HD bit and loses everything else, and a run without EZ normalises to no mods at all -
+ * those are the ones `osuMultiplier` is backed out of instead.
  */
 export const normalizeMods = (mods: number): number =>
   (mods & Mods.EZ) === 0 ? Mods.NONE : Mods.EZ | (mods & Mods.HD)
+
+/**
+ * The multiplier osu! itself already put on a score for the mods it was set with.
+ *
+ * This is what "normalising" means for the seeding: an HR run comes out of the lobby worth 1.1 times
+ * what the same play would have been worth unmodded, and comparing it with an HD run at 1.06 on the
+ * same slot compares the mods rather than the play. Dividing by this puts every pick back on the
+ * same footing.
+ *
+ * Freemod in practice is HD, HR, HDHR, EZ and EZHD, so those are what this has to be right about;
+ * HDHR is the tournament's own figure and not HD times HR. EZ is deliberately absent - it is paid
+ * for by `modMultipliers` instead - and so is anything else, which is left exactly as osu! reported
+ * it rather than adjusted by a number nobody has stated.
+ */
+const OSU_MULTIPLIERS: Record<string, number> = {
+  HD: 1.06,
+  HR: 1.1,
+  HDHR: 1.12,
+  DT: 1.2
+}
+
+/** What osu! already paid for `mods`, or 1 for a combination with no stated figure. */
+export const osuMultiplier = (mods: number): number => OSU_MULTIPLIERS[formatMods(mods)] ?? 1

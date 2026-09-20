@@ -57,13 +57,16 @@ field breaks existing deployments.
   is matched to lobby scores by username. So re-pointing a slot, re-importing the sheet or importing
   players after their lobby needs nothing re-read. A lobby score keeps the player's **own** mods
   (`own_mods`: score mods minus the game's minus NF); on a freemod slot (`isFreeMod`: label `FM…`
-  or `TB…`) the score is multiplied by `tournament_settings.mod_multipliers[…]` before the best run
-  is picked, ranked or Z-scored. **Mods are normalised first** (`normalizeMods`): an EZ run keeps EZ
-  plus its HD bit and loses the rest, anything without EZ becomes no mods at all, so `EZ` and `EZHD`
-  are the only two keys that can ever be looked up and every other pick is scored as osu! reported
-  it. A multiplier configured for, say, `HR` is therefore dead config. Rows written before `own_mods`
-  existed are NULL, and `loadLobbies` clears the watermark of their lobbies so they are read again
-  once.
+  or `TB…`) the score goes through `modMultiplier` before the best run is picked, ranked or Z-scored.
+  That is **two rules either side of EZ**. An EZ run - `EZ` or `EZHD` once `normalizeMods` has kept
+  the EZ and HD bits and dropped the rest - takes the tournament's own rate out of
+  `tournament_settings.mod_multipliers`, since what EZ is worth is a rule only organisers can settle,
+  and those two are the only keys that do anything. Every other pick is **normalised**: osu! itself
+  already paid HD 1.06, HR 1.1, HDHR 1.12 and DT 1.2 (`OSU_MULTIPLIERS` in `mods.ts` - fixed, not
+  configurable, and the tournament's own figures rather than a product of the single mods), so the
+  factor is the *reciprocal* of that and what is compared is the play. A combination with no figure
+  on file, FL among them, divides by 1. Rows written before `own_mods` existed are NULL, and
+  `loadLobbies` clears the watermark of their lobbies so they are read again once.
 - **Seeding follows the Z-sum** (`seedingByZSum`): per qualifier slot, `(score − mean) / sample sd`
   over the field of everyone with at least one result, an unplayed map counting as 0; ties go to the
   raw total, then to the current order. `qualifier-lobbies.ts` calls `reseedByZSum` after every

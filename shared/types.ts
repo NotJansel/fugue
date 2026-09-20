@@ -100,7 +100,11 @@ export interface MapScore {
   source: 'lobby' | 'sheet'
   /** The player's own mods on the run that counts, beyond what the slot forces - what a freemod slot shows. */
   mods: string
-  /** The tournament's multiplier for those mods, already applied to `value`. 1 when none applies. */
+  /**
+   * What `value` was multiplied by for those mods: the tournament's rate for an EZ run, and the
+   * reciprocal of osu!'s own multiplier - so below 1 - for every other pick, which is what puts
+   * them all on the same footing. 1 when neither applies.
+   */
   multiplier: number
 }
 
@@ -258,10 +262,10 @@ export interface TournamentState {
    */
   secondRun: boolean
   /**
-   * Score multipliers on freemod slots: `{ EZ: 1.8, EZHD: 2 }`. The player's own mods are normalised
-   * to `EZ`, `EZHD` or nothing first (`normalizeMods`), so those are the only two keys that can ever
-   * apply - every other pick is scored as osu! reported it, which is what "seeding normalises mods"
-   * means here. An EZ run with anything else on top counts as EZ, or as EZHD when it had HD.
+   * What EZ is worth on a freemod slot: `{ EZ: 1.8, EZHD: 2 }`. Those are the only two keys that can
+   * apply - the player's own mods are reduced to `EZ`, `EZHD` or nothing first (`normalizeMods`), so
+   * an EZ run counts the same however else it was dressed up. Every other pick is not a rule but a
+   * correction, and is normalised instead: osu!'s own multiplier is divided back out of it.
    */
   modMultipliers: Record<string, number>
   /** Set to pin the captain count instead of deriving it from `teamSize`. */

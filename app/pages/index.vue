@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { MapScore } from '#shared/types'
+
 const { state, auction, isAdmin, api, players } = useDashboard()
 const { t } = useLang()
 const { money, number } = useFormat()
@@ -17,6 +19,36 @@ async function cancel() {
     cancelling.value = false
   }
 }
+
+/**
+ * The player on the block, as the seeding knows them.
+ *
+ * The auction's own subject is a snapshot taken when it started; the results are not on it and have
+ * no business being, so they are read off the pushed player list instead - the same numbers the
+ * mappool page shows, and the same ones the seed was worked out from.
+ */
+const onBlock = computed(() => players.value.find(player => player.osuId === auction.value?.osuId) ?? null)
+
+/** The qualifier slots, picked the way the server picks them: the round named so, or the whole pool. */
+const qualifierMaps = computed(() => {
+  const pool = state.value?.mappool ?? []
+  const named = pool.filter(map => /qualif/i.test(map.stage))
+
+  return named.length > 0 ? named : pool
+})
+
+/** What the player on the block put up in the qualifiers, in pool order. Slots they skipped are left out. */
+const quals = computed(() => {
+  const player = onBlock.value
+  if (!player) return []
+
+  return qualifierMaps.value
+    .map(map => ({ map, score: player.mapScores[map.id] }))
+    .filter((entry): entry is { map: typeof entry.map, score: MapScore } => entry.score != null)
+})
+
+/** A sheet cell is shown as written; a lobby score is a plain integer and gets the viewer's grouping. */
+const cellText = (cell: MapScore): string => cell.source === 'lobby' ? number(cell.value) : cell.display
 
 /** Who is on the block after this one - the pool in seeding order, minus everyone already sold. */
 const upNext = computed(() =>
@@ -72,6 +104,39 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
               >
                 {{ auction.description }}
               </p>
+
+              <div
+                v-if="quals.length"
+                class="space-y-1.5 pt-1"
+              >
+                <p class="text-[11px] uppercase tracking-wider text-muted">
+                  {{ t('auction.quals') }}
+                  <span
+                    v-if="onBlock?.zSum != null"
+                    class="ms-2 tnum text-toned"
+                  >{{ t('seeding.zSum', { value: number(onBlock.zSum, 2) }) }}</span>
+                </p>
+
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="entry in quals"
+                    :key="entry.map.id"
+                    class="rounded-md bg-elevated/50 px-2 py-1 text-xs tnum"
+                  >
+                    <span class="text-muted">{{ entry.map.label }}</span>
+                    <span class="ms-1.5">{{ cellText(entry.score) }}</span>
+                    <span
+                      class="ms-1"
+                      :class="entry.score.rank === 1 ? 'text-secondary' : 'text-muted'"
+                    >#{{ entry.score.rank }}</span>
+                    <span
+                      v-if="entry.score.mods"
+                      class="ms-1 text-primary"
+                    >{{ entry.score.mods }}<template v-if="entry.score.multiplier !== 1">
+                      ×{{ number(entry.score.multiplier, 2) }}</template></span>
+                  </span>
+                </div>
+              </div>
             </div>
 
             <CountdownRing

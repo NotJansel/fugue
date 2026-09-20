@@ -1,4 +1,4 @@
-import type { LobbyScore, QualifierMap, TournamentState } from '#shared/types'
+import type { LobbyScore, ManualScore, QualifierMap, TournamentState } from '#shared/types'
 import { qualifierMaps, qualifierResults } from './tournament-model'
 
 /**
@@ -98,10 +98,14 @@ function ranks(values: number[]): number[] {
  * other two blocks are ranks among those same teams: a bracket's is the Z-sum over that bracket's
  * slots alone, a map's is the score on it.
  */
-export function scoresCsv(state: TournamentState, lobbyScores: LobbyScore[]): string[][] {
+export function scoresCsv(
+  state: TournamentState,
+  lobbyScores: LobbyScore[],
+  manualScores: ManualScore[]
+): string[][] {
   const maps = qualifierMaps(state)
   const pools = modPools(maps)
-  const results = qualifierResults(state, lobbyScores)
+  const results = qualifierResults(state, lobbyScores, manualScores)
   const scored = new Set(results.scored)
 
   const teams: TeamRow[] = state.players

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MapScore, QualifierMap } from '#shared/types'
+import type { MapScore, PlayerDto, QualifierMap } from '#shared/types'
 
 const { state, players, isAdmin, api } = useDashboard()
 const { t } = useLang()
@@ -145,6 +145,59 @@ const results = computed(() => {
 })
 
 const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.value.has(map.id)).length)
+
+/**
+ * The cell being typed into, if any.
+ *
+ * A score is entered per player and slot, for a run osu! has no usable record of - a disconnect
+ * early enough to submit nothing, or early enough to submit something worse. Whatever goes in here
+ * is what osu! *would* have reported, mods and all, and is normalised on its way back like any
+ * other; the organiser types what they saw.
+ */
+const editing = ref<{ player: PlayerDto, map: QualifierMap } | null>(null)
+const cellScore = ref(0)
+const cellMods = ref('')
+const savingCell = ref(false)
+
+/** What an organiser typed for this cell before, if they typed one - `null` for a read score. */
+const manualFor = (osuId: string, mapId: string) =>
+  state.value?.manualScores?.find(entry => entry.osuId === osuId && entry.mapId === mapId) ?? null
+
+const editingManual = computed(() =>
+  editing.value ? manualFor(editing.value.player.osuId, editing.value.map.id) : null
+)
+
+function openCell(player: PlayerDto, map: QualifierMap | undefined) {
+  if (!isAdmin.value || !map) return
+
+  const typed = manualFor(player.osuId, map.id)
+  const cell = player.mapScores[map.id]
+
+  editing.value = { player, map }
+  // A score that was read is put back in the box as osu! reported it, not as it is ranked, so an
+  // organiser correcting one starts from the number they would see on the scoreboard.
+  cellScore.value = typed?.score ?? (cell ? Math.round(cell.value / cell.multiplier) : 0)
+  cellMods.value = typed?.mods ?? (cell?.mods || map.mods || '')
+}
+
+async function saveCell(score: number | null) {
+  const target = editing.value
+  if (!target) return
+
+  savingCell.value = true
+
+  try {
+    await api('/api/scores/set', {
+      osuId: target.player.osuId,
+      mapId: target.map.id,
+      score,
+      mods: cellMods.value
+    })
+    editing.value = null
+  } finally {
+    savingCell.value = false
+  }
+}
 </script>
 
 <template>
@@ -348,8 +401,17 @@ const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.
                 v-for="(cell, index) in row.cells"
                 :key="index"
                 class="py-1.5 px-3 text-right tnum"
+                :class="isAdmin ? 'cursor-pointer hover:bg-elevated/40' : ''"
+                :title="isAdmin ? t('mappool.enterScore') : undefined"
+                @click="openCell(row.player, scored[index])"
               >
                 <span v-if="cell">
+                  <UIcon
+                    v-if="cell.source === 'manual'"
+                    name="i-lucide-pencil"
+                    class="me-1 size-3 align-middle text-muted"
+                    :title="t('mappool.manual')"
+                  />
                   {{ cellText(cell) }}
                   <span
                     class="ms-1 text-xs"
@@ -386,5 +448,70 @@ const bound = computed(() => maps.value.filter(map => map.column || lobbyScored.
     </UCard>
 
     <QualifierLobbies />
+
+    <UModal
+      :open="editing != null"
+      :title="editing ? `${editing.player.username} - ${editing.map.label}` : ''"
+      :description="t('mappool.enterScoreHint')"
+      @update:open="editing = null"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <UFormField :label="t('mappool.scoreValue')">
+            <UInputNumber
+              v-model="cellScore"
+              :min="0"
+              :step="1000"
+              class="w-full"
+              :ui="{ base: 'tnum font-display' }"
+            />
+          </UFormField>
+
+          <UFormField
+            :label="t('mappool.scoreMods')"
+            :help="t('mappool.scoreModsHint')"
+          >
+            <UInput
+              v-model="cellMods"
+              :placeholder="editing?.map.mods || t('common.none')"
+              class="w-full"
+            />
+          </UFormField>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="flex w-full justify-between gap-2">
+          <UButton
+            v-if="editingManual"
+            color="error"
+            variant="ghost"
+            icon="i-lucide-trash-2"
+            :loading="savingCell"
+            @click="saveCell(null)"
+          >
+            {{ t('common.remove') }}
+          </UButton>
+          <span v-else />
+
+          <div class="flex gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="editing = null"
+            >
+              {{ t('common.cancel') }}
+            </UButton>
+            <UButton
+              icon="i-lucide-save"
+              :loading="savingCell"
+              @click="saveCell(cellScore)"
+            >
+              {{ t('common.save') }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

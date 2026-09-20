@@ -4,6 +4,7 @@ import { config, osuOauthConfigured } from './config'
 import { botConnected } from '../bot/client'
 import { currentImportProgress, lastImportOutcome } from './import-progress'
 import { allLobbies, allLobbyScores } from './lobby-store'
+import { allManualScores } from './manual-score-store'
 import { allOsuLinks } from './osu-link-store'
 import { getAllBalances, getAllHolds } from './purse-store'
 import {
@@ -82,7 +83,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
   const captainIds = new Set(chosenCaptains.map(player => player.osuId))
   const takingPart = new Set(field(tournament).map(player => player.osuId))
   const seeds = new Map(tournament.players.map((player, index) => [player.osuId, index + 1]))
-  const results = qualifierResults(tournament, allLobbyScores())
+  const results = qualifierResults(tournament, allLobbyScores(), allManualScores())
 
   const purchases = new Map<string, { captainOsuId: string, price: number }>()
   for (const [captainOsuId, members] of Object.entries(tournament.rosters)) {
@@ -188,6 +189,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     importProgress: currentImportProgress(),
     importOutcome: guest ? null : lastImportOutcome(),
     lobbies: lobbyDtos(),
+    manualScores: allManualScores(),
     removedPlayers: guest
       ? []
       : (tournament.removedPlayers ?? []).map(player => ({ osuId: player.osuId, username: player.username })),

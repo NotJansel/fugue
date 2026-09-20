@@ -96,8 +96,11 @@ export interface MapScore {
    * the Z-sum. `null` when the map has too few scores for a deviation to mean anything.
    */
   z: number | null
-  /** Where the score came from: the osu! lobby it was set in, or the qualifier sheet's column. */
-  source: 'lobby' | 'sheet'
+  /**
+   * Where the score came from: the osu! lobby it was set in, the qualifier sheet's column, or an
+   * organiser who typed it in for a run osu! has no record of.
+   */
+  source: 'lobby' | 'sheet' | 'manual'
   /** The player's own mods on the run that counts, beyond what the slot forces - what a freemod slot shows. */
   mods: string
   /**
@@ -106,6 +109,23 @@ export interface MapScore {
    * score set unmodded, and for one read off a sheet, whose mods nobody knows.
    */
   multiplier: number
+}
+
+/**
+ * A score an organiser typed in, for one player on one pool slot.
+ *
+ * The last word on that cell: a disconnect early enough to submit nothing leaves no lobby score at
+ * all, and one early enough to submit a broken one leaves something worse than nothing, so this wins
+ * over both. Kept as osu! would have reported it - mods and all - so it is normalised on the way to
+ * the dashboard exactly like a score that was read rather than typed.
+ */
+export interface ManualScore {
+  osuId: string
+  /** `QualifierMap.id`, so the entry survives the slot being re-labelled or re-pointed. */
+  mapId: string
+  score: number
+  /** The whole combination it was played with, the slot's own mods included. Canonical, empty for none. */
+  mods: string
 }
 
 /**
@@ -483,6 +503,11 @@ export interface DashboardState {
   importOutcome: ImportOutcome | null
   /** Every qualifier lobby on file, newest first. */
   lobbies: QualifierLobbyDto[]
+  /**
+   * Scores an organiser typed in, as they typed them. The results already have them applied and
+   * normalised; these are what the editor puts back in the box.
+   */
+  manualScores: ManualScore[]
   /** Players an organiser took off the list. Empty for a guest. */
   removedPlayers: RemovedPlayerDto[]
   poolRemaining: number

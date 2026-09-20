@@ -2,6 +2,7 @@ import { defineEventHandler } from 'h3'
 import type { ApiOk } from '#shared/types'
 import { apiError } from '../../utils/http-error'
 import { allLobbyScores } from '../../utils/lobby-store'
+import { allManualScores } from '../../utils/manual-score-store'
 import { requireAdmin } from '../../utils/session'
 import { getTournament, reseedByZSum } from '../../utils/tournament-store'
 
@@ -18,7 +19,7 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     throw apiError(409, 'Seeding is locked - unlock it to make changes.', 'err.seeding.locked')
   }
 
-  const moved = await reseedByZSum(allLobbyScores())
+  const moved = await reseedByZSum(allLobbyScores(), allManualScores())
 
   return moved
     ? { ok: true, message: 'Seeding now follows the Z-sum.', code: 'ok.reseeded' }

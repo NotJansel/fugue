@@ -8,6 +8,7 @@ import {
   removeLobby,
   saveLobby
 } from './lobby-store'
+import { allManualScores } from './manual-score-store'
 import { Mods, formatMods } from './mods'
 import type { OsuGame, OsuGameScore, OsuMatch } from './osu-api'
 import { fetchMatchHistory, fetchMatchPage, matchIdIn, osuApiReady } from './osu-api'
@@ -225,7 +226,7 @@ async function readLobby(lobby: QualifierLobby, from = lobby.latestEventId): Pro
  * seeding is left alone - that is what the lock is for - and the results still show.
  */
 async function publish(): Promise<void> {
-  if (!getTournament().seedingLocked) await reseedByZSum(allLobbyScores())
+  if (!getTournament().seedingLocked) await reseedByZSum(allLobbyScores(), allManualScores())
 
   emitChange()
 }

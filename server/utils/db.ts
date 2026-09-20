@@ -244,6 +244,20 @@ const schema = `
 
   ALTER TABLE lobby_scores ADD COLUMN IF NOT EXISTS own_mods text;
 
+  -- Scores an organiser typed in, for the runs osu! has no record of: a disconnect early enough that
+  -- nothing was submitted, a lobby that was never read. One per player and pool slot, and the last
+  -- word on that cell whatever a lobby or a sheet says about it. Deliberately without a foreign key:
+  -- the players table is rewritten in full on every save, which would take these with it.
+  CREATE TABLE IF NOT EXISTS manual_scores (
+    osu_id  text NOT NULL,
+    map_id  text NOT NULL,
+    -- As osu! would have reported it, mods and all; normalising it is the dashboard's business.
+    score   bigint NOT NULL,
+    -- The whole combination it was played with, the slot's own included. Empty for none.
+    mods    text NOT NULL DEFAULT '',
+    PRIMARY KEY (osu_id, map_id)
+  );
+
   CREATE TABLE IF NOT EXISTS osu_links (
     discord_id    text PRIMARY KEY,
     -- One osu! account belongs to exactly one Discord account, enforced here rather than only in code.

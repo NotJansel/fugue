@@ -3,6 +3,7 @@ import type {
   CaptainMode,
   ColumnMapping,
   LobbyScore,
+  ManualScore,
   MappoolColumnMapping,
   MappoolSheetConfig,
   QualifierMap,
@@ -640,11 +641,11 @@ export function moveSeed(osuId: string, toIndex: number): Promise<TournamentStat
  * come from. Callers decide what the seeding lock means to them: the route refuses, the lobby watcher
  * simply leaves a locked seeding alone. Returns whether the order actually moved.
  */
-export async function reseedByZSum(lobbyScores: LobbyScore[]): Promise<boolean> {
+export async function reseedByZSum(lobbyScores: LobbyScore[], manualScores: ManualScore[] = []): Promise<boolean> {
   let moved = false
 
   await update((current) => {
-    const reseeded = seedingByZSum(current, lobbyScores)
+    const reseeded = seedingByZSum(current, lobbyScores, manualScores)
     moved = reseeded.some((player, index) => player.osuId !== current.players[index]?.osuId)
 
     return moved ? { ...current, players: reseeded } : current

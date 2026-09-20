@@ -1,6 +1,7 @@
 import { defineEventHandler, setHeader } from 'h3'
 import { formatCsv } from '../../utils/csv'
 import { allLobbyScores } from '../../utils/lobby-store'
+import { allManualScores } from '../../utils/manual-score-store'
 import { fetchCountryCodes, osuApiReady } from '../../utils/osu-api'
 import { scoresCsv } from '../../utils/seeding-export'
 import { requireAdmin } from '../../utils/session'
@@ -19,7 +20,7 @@ import { getTournament, saveCountryCodes } from '../../utils/tournament-store'
 export default defineEventHandler(async (event): Promise<string> => {
   await requireAdmin(event)
 
-  const scored = new Set(qualifierResults(getTournament(), allLobbyScores()).scored)
+  const scored = new Set(qualifierResults(getTournament(), allLobbyScores(), allManualScores()).scored)
   const missing = getTournament().players
     .filter(player => scored.has(player.osuId) && !player.countryCode)
     .map(player => player.osuId)
@@ -29,5 +30,5 @@ export default defineEventHandler(async (event): Promise<string> => {
   setHeader(event, 'content-type', 'text/csv; charset=utf-8')
   setHeader(event, 'content-disposition', 'attachment; filename="scores.csv"')
 
-  return formatCsv(scoresCsv(getTournament(), allLobbyScores()))
+  return formatCsv(scoresCsv(getTournament(), allLobbyScores(), allManualScores()))
 })

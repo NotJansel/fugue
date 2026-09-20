@@ -1,5 +1,6 @@
 import type {
   LobbyScore,
+  ManualScore,
   MapScore,
   QualifierMap,
   TournamentPlayer,
@@ -235,7 +236,8 @@ function deviation(values: number[]): { mean: number, sd: number } | null {
  * divided back out, and a 1.8x EZ run is ranked at 1.8 times what osu! reported.
  * A slot no lobby has played yet falls back to the sheet column it is bound to, so a tournament that
  * only ever imports a sheet reads exactly as before. A game on a beatmap outside the qualifier pool -
- * a warm-up - matches no slot and is ignored.
+ * a warm-up - matches no slot and is ignored. A score an organiser typed in overrides whichever
+ * source that slot came from, for that one player: it is there because osu! had nothing usable.
  *
  * Standings follow the Z-sum method: on every qualifier slot, each player's score is expressed as
  * the number of standard deviations above or below the mean across the field, and those are summed.
@@ -245,7 +247,11 @@ function deviation(values: number[]): { mean: number, sd: number } | null {
  * Ranks are competition style: players tied on a map share a rank and the next one skips, and a
  * player with no score on a map simply has no entry - they are not ranked last.
  */
-export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore[]): QualifierResults {
+export function qualifierResults(
+  state: TournamentState,
+  lobbyScores: LobbyScore[],
+  manualScores: ManualScore[] = []
+): QualifierResults {
   const known = new Set(state.players.map(player => player.osuId))
   // A player imported without an osu! ID is only ever matched by name, so a score set under a name
   // that later turns out to be theirs attaches once enrichment supplies the ID.
@@ -280,24 +286,33 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
     display: string
     mods: string
     multiplier: number
+    source: MapScore['source']
   }
 
-  const perMap = new Map<string, { source: MapScore['source'], values: Map<string, Entry> }>()
+  // Per slot rather than per player, because that is how the sheet fallback and the deviations work:
+  // a slot is read from one source, and only a typed-in score overrides a single cell of it.
+  const perMap = new Map<string, Map<string, Entry>>()
 
   for (const score of lobbyScores) {
     const slot = slotFor(score)
     const osuId = playerFor(score)
     if (!slot || !osuId) continue
 
-    let entry = perMap.get(slot.id)
-    if (!entry) perMap.set(slot.id, entry = { source: 'lobby', values: new Map() })
+    let values = perMap.get(slot.id)
+    if (!values) perMap.set(slot.id, values = new Map())
 
     const multiplier = modMultiplier(state, score.mods)
     const value = score.score * multiplier
 
-    const best = entry.values.get(osuId)
+    const best = values.get(osuId)
     if (!best || value > best.value) {
-      entry.values.set(osuId, { value, display: String(Math.round(value)), mods: score.ownMods, multiplier })
+      values.set(osuId, {
+        value,
+        display: String(Math.round(value)),
+        mods: score.ownMods,
+        multiplier,
+        source: 'lobby'
+      })
     }
   }
 
@@ -312,21 +327,45 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
       if (!raw) continue
 
       const value = parseSheetNumber(raw)
-      if (value != null) values.set(player.osuId, { value, display: raw, mods: '', multiplier: 1 })
+      if (value != null) values.set(player.osuId, { value, display: raw, mods: '', multiplier: 1, source: 'sheet' })
     }
 
-    if (values.size > 0) perMap.set(map.id, { source: 'sheet', values })
+    if (values.size > 0) perMap.set(map.id, values)
+  }
+
+  // Last, and per cell: a typed-in score is what an organiser put there because osu! had nothing
+  // usable to say, so it beats both a lobby score and a sheet column for that one player and slot.
+  for (const manual of manualScores) {
+    const slot = state.mappool.find(map => map.id === manual.mapId)
+    if (!slot || !known.has(manual.osuId)) continue
+
+    let values = perMap.get(manual.mapId)
+    if (!values) perMap.set(manual.mapId, values = new Map())
+
+    const multiplier = modMultiplier(state, manual.mods)
+    const value = manual.score * multiplier
+    // Shown the way a read score is: the slot's own mods go without saying, so only what the player
+    // added to them is worth a badge.
+    const own = formatMods(parseMods(manual.mods) & ~parseMods(slot.mods))
+
+    values.set(manual.osuId, {
+      value,
+      display: String(Math.round(value)),
+      mods: own,
+      multiplier,
+      source: 'manual'
+    })
   }
 
   const field = state.players
     .map(player => player.osuId)
-    .filter(osuId => [...perMap].some(([mapId, entry]) => qualifiers.has(mapId) && entry.values.has(osuId)))
+    .filter(osuId => [...perMap].some(([mapId, values]) => qualifiers.has(mapId) && values.has(osuId)))
 
   const scores: Record<string, Record<string, MapScore>> = {}
   const standings: Record<string, QualifierStanding> = {}
   const mapStats: Record<string, { mean: number, sd: number }> = {}
 
-  for (const [mapId, { source, values }] of perMap) {
+  for (const [mapId, values] of perMap) {
     const stats = qualifiers.has(mapId) ? deviation(field.map(osuId => values.get(osuId)?.value ?? 0)) : null
     if (stats) mapStats[mapId] = stats
     const zOf = (value: number): number | null => stats ? (value - stats.mean) / stats.sd : null
@@ -346,7 +385,7 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
         display: entry.display,
         rank,
         z: zOf(entry.value),
-        source,
+        source: entry.source,
         mods: entry.mods,
         multiplier: entry.multiplier
       }
@@ -371,8 +410,12 @@ export function qualifierResults(state: TournamentState, lobbyScores: LobbyScore
  * total and then to whoever was seeded higher already. Players with no qualifier result keep their
  * order below everyone who has one.
  */
-export function seedingByZSum(state: TournamentState, lobbyScores: LobbyScore[]): TournamentPlayer[] {
-  const { standings } = qualifierResults(state, lobbyScores)
+export function seedingByZSum(
+  state: TournamentState,
+  lobbyScores: LobbyScore[],
+  manualScores: ManualScore[] = []
+): TournamentPlayer[] {
+  const { standings } = qualifierResults(state, lobbyScores, manualScores)
   const position = new Map(state.players.map((player, index) => [player.osuId, index]))
 
   const ranked = state.players

@@ -49,7 +49,12 @@ field breaks existing deployments.
   504), so the route reads and checks the sheet, answers `ok.importStarted`, and the rest reports
   through `importProgress` and `importOutcome` over SSE. One import at a time; a second gets a 409.
 - The mappool stores **no scores**. Results are derived on every dashboard build
-  (`qualifierResults` in `tournament-model.ts`), per slot from the first of two sources: the raw
+  (`qualifierResults` in `tournament-model.ts`), per slot from the first of two sources - and over
+  the top of both, per *cell*, whatever an organiser typed in (`manual-score-store.ts`, table
+  `manual_scores`, `POST /api/scores/set`): a disconnect early enough submits nothing, or something
+  worse than nothing, and no amount of re-reading the lobby will fix either. A typed-in score is
+  kept as osu! would have reported it, mods and all, so it normalises like a read one. The two
+  sources are: the raw
   lobby scores in `lobby_scores` (`lobby-store.ts`), matched to the slot by **beatmap ID** among the
   qualifier slots (`qualifierMaps`: the round named `/qualif/i`, or the whole pool when none is),
   taking each player's **best** game on it; and failing any, the sheet column the slot names

@@ -5,6 +5,7 @@ import { warnAboutMissingValues } from '../utils/config'
 import { closeDatabase, migrate } from '../utils/db'
 import { importLegacyData } from '../utils/legacy-import'
 import { loadLobbies } from '../utils/lobby-store'
+import { loadManualScores } from '../utils/manual-score-store'
 import { checkOsuApi } from '../utils/osu-api'
 import { loadOsuLinks } from '../utils/osu-link-store'
 import { loadPurses } from '../utils/purse-store'
@@ -27,7 +28,9 @@ export default defineNitroPlugin((nitro) => {
 
   const ready = migrate()
     .then(importLegacyData)
-    .then(() => Promise.all([loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies()]))
+    .then(() => Promise.all([
+      loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies(), loadManualScores()
+    ]))
     .then(() => Promise.all([startBot(), checkOsuApi()]))
     // After the stores, so the first poll already knows which lobbies are still to be read.
     .then(startLobbyWatch)

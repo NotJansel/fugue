@@ -95,7 +95,8 @@ field breaks existing deployments.
 - The two **CSV exports** (`server/utils/seeding-export.ts`, `GET /api/export/scores.csv` and
   `/api/export/maps.csv`, both admin-only) write the qualifier pool in the shape a bracket tool
   reads, not the shape the dashboard shows. Solo qualifiers, so every row is a team of one and the
-  size column is always 1. `scores.csv` is the field, minus anyone with no qualifier result; the
+  size column is always 1. `scores.csv` is everyone who played the qualifiers - the field cut decides
+  who is bought, not who set a score - minus anyone with no result at all; the
   overall seed is the *list order* renumbered 1..N, while the mod-bracket seeds (slots grouped by the
   letters their label starts with) and the per-map seeds are ranks worked out there and then, an
   unplayed map counting as 0. Flags are the one thing nothing else needs, so `players.country_code`

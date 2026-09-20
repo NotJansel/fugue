@@ -1,5 +1,5 @@
 import type { LobbyScore, QualifierMap, TournamentState } from '#shared/types'
-import { field, qualifierMaps, qualifierResults } from './tournament-model'
+import { qualifierMaps, qualifierResults } from './tournament-model'
 
 /**
  * The qualifier results and the mappool, in the two CSV shapes a bracket tool reads.
@@ -85,10 +85,12 @@ function ranks(values: number[]): number[] {
  * Left to right: team name, team flag, every map score, the overall seeding, the seeding within each
  * mod bracket, the seeding on each map, the team size, then every player ID and every player flag.
  *
- * Only the field takes part - anyone below the cut keeps their results on the dashboard but is not in
- * the bracket - and only players with a qualifier result to their name are written, since a row of
- * zeroes is not a seeding. Scores are the ones the seeding goes by, normalised to what the play
- * would have been worth at 1x. A map a team never played is a 0, and is ranked as one, which is how the Z-sum counts it.
+ * Everyone who played the qualifiers is written, the field cut notwithstanding: the cut decides who
+ * is bought at auction, not who turned up and set a score, and a bracket tool asking for the results
+ * is asking for all of them. Only a player with no result at all is left out, since a row of zeroes
+ * is not a seeding. Scores are the ones the seeding goes by, normalised to what the play would have
+ * been worth at 1x. A map a team never played is a 0, and is ranked as one, which is how the Z-sum
+ * counts it.
  *
  * The overall seeding is this tournament's own - the order of the list, which follows the Z-sum
  * while the seeding is unlocked and follows the organiser once it isn't - numbered 1..N over the
@@ -102,7 +104,7 @@ export function scoresCsv(state: TournamentState, lobbyScores: LobbyScore[]): st
   const results = qualifierResults(state, lobbyScores)
   const scored = new Set(results.scored)
 
-  const teams: TeamRow[] = field(state)
+  const teams: TeamRow[] = state.players
     .filter(player => scored.has(player.osuId))
     .map((player) => {
       const values = maps.map(map => results.scores[player.osuId]?.[map.id]?.value ?? 0)

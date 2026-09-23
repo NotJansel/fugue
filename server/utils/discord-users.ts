@@ -1,6 +1,32 @@
+import { DiscordAPIError, RESTJSONErrorCodes } from 'discord.js'
 import type { TournamentPlayer } from '#shared/types'
 import { getClient } from '../bot/client'
 import { config } from './config'
+
+/**
+ * What the tournament guild says about one Discord ID: the member's username, `false` when the guild
+ * has no member by that ID, or `null` when there was nobody to ask - the bot offline, `GUILD_ID`
+ * unset, or Discord failing in some other way. Only `false` is an answer worth refusing on.
+ */
+export async function discordMemberName(discordId: string): Promise<string | false | null> {
+  const client = getClient()
+  if (!client?.isReady() || !config.guildId) return null
+
+  const guild = await client.guilds.fetch(config.guildId).catch(() => null)
+  if (!guild) return null
+
+  try {
+    return (await guild.members.fetch(discordId)).user.username
+  } catch (error) {
+    const missing = error instanceof DiscordAPIError
+      && (error.code === RESTJSONErrorCodes.UnknownMember || error.code === RESTJSONErrorCodes.UnknownUser)
+    if (missing) return false
+
+    console.error(`[discord] Could not look up member ${discordId}:`, error)
+
+    return null
+  }
+}
 
 /**
  * Turns the Discord usernames a registration sheet names into user IDs, by searching the tournament

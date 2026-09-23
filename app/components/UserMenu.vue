@@ -5,12 +5,13 @@
  * The role badge is the fastest answer to "why can't I press this": guest, member, captain or
  * organiser, in that order of privilege.
  */
-const { user, isAdmin, myCaptain, state } = useDashboard()
+const { user, isAdmin, myCaptain, standingIn, state } = useDashboard()
 const { t } = useLang()
 
 const role = computed(() => {
   if (!user.value) return { label: t('role.guest'), colour: 'neutral' as const }
   if (isAdmin.value) return { label: t('role.organiser'), colour: 'primary' as const }
+  if (myCaptain.value && standingIn.value) return { label: t('role.proxy'), colour: 'secondary' as const }
   if (myCaptain.value) return { label: t('role.captain'), colour: 'secondary' as const }
 
   return { label: t('role.viewer'), colour: 'neutral' as const }

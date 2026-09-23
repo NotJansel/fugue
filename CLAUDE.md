@@ -44,6 +44,13 @@ field breaks existing deployments.
   late entry, or a field to try something on without a sheet: the osu! lookup gives them their ID,
   name and country, they go to the bottom, and being added takes them off `removedPlayers`. Like
   every other list change it is refused while `seedingLocked`.
+- An organiser can **override a player's description** (`POST /api/players/description`). The
+  override is its own field, `descriptionOverride` (`players.description_override`), beside the
+  sheet's `description` rather than written over it: both imports keep refreshing the sheet's text
+  underneath and never touch the override, and sending `null` goes back to the sheet's. An empty
+  string is an override too, and hides the description. Whatever shows a description - the
+  dashboard, both ways of starting an auction - goes through `playerDescription`. The sheet's own
+  text reaches organisers only (`PlayerDto.sheetDescription`), since hiding it is often the point.
 - Player imports **run in the background** (`startImport` in `import-progress.ts`). A full
   registration list takes minutes of osu! and Discord lookups, far past a reverse proxy's timeout (a
   504), so the route reads and checks the sheet, answers `ok.importStarted`, and the rest reports
@@ -138,6 +145,9 @@ field breaks existing deployments.
   exception is a **`FORCE` captain**, picked off the whole list rather than off the field: someone
   with no qualifier result has no Z-sum and is reseeded to the bottom, and a cut would otherwise take
   their captaincy away again. `AUTO` captains still come out of the field.
+- The auction **clock** opens at 20 seconds (`AUCTION_DURATION_MS`) and a bid does *not* restart
+  it: only a bid with less than 10 seconds left (`BID_EXTENSION_MS`) puts it back up to 10. The
+  client's countdown ring measures against the same 20 seconds, hand-copied in `useCountdown.ts`.
 - Every rule a bid has to pass lives in `submitBid`, not in the route: team not yet full, inside the
   min/max step (measured from the starting price for an opening bid, from the standing bid after
   that), affordable, and still leaving `reserveFor()` - what the captain needs to fill their roster
@@ -149,7 +159,16 @@ field breaks existing deployments.
   arriving in that window would otherwise see a half-ended auction.
 - **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
   endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
-  that Discord account to own a captain, so a bid can never be placed as someone else.
+  that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be
+  placed as someone else. A team may have one stand-in, a Discord ID an organiser sets on the team
+  card (`POST /api/teams/proxy`, `TournamentState.proxies`, table `team_proxies`, keyed by captain
+  osu! ID and pruned/rekeyed with the rosters). `captainForBidder` resolves either to the captain,
+  and from there on the bid is the captain's: held on the captain's purse and led under the
+  captain's Discord ID (`highestBidder`), so captain and stand-in never outbid each other and the
+  win lands on the captain's roster. A stand-in for a captain with no Discord ID has no purse to bid
+  from. An account that already bids for another team, as captain or stand-in, can't be named. The
+  ID is looked up in the guild on save (`discordMemberName`): an ID with no member there is refused,
+  the username is stored beside it for the team card, and with the bot offline it is saved nameless.
 - The Discord auction card is a hand-built Components V2 payload (`server/bot/client.ts`), sent
   through `client.rest` rather than the builders, so the same object serves the initial post and every
   bid update. When one ends, `announce` posts the result and the winning captain's roster as it now

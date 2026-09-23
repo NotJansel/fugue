@@ -39,6 +39,13 @@ export interface TournamentPlayer {
   captainMode: CaptainMode
   /** What the player wrote about themselves on the sheet. Shown with the seeding and at auction. */
   description?: string | null
+  /**
+   * What an organiser wrote in place of `description`, which it wins over wherever a description is
+   * shown. Kept apart rather than written over it so an import can go on refreshing the sheet's text
+   * without undoing the edit, and so resetting brings the sheet's back. `null` means no override; an
+   * empty string is one, and hides the description altogether.
+   */
+  descriptionOverride?: string | null
   /** Remaining sheet columns, kept so the dashboard can show them without a schema change. */
   extra: Record<string, string>
 }
@@ -299,6 +306,12 @@ export interface TournamentState {
   rosters: Record<string, TeamMember[]>
   /** captain osu! ID -> team name. */
   teamNames: Record<string, string>
+  /**
+   * captain osu! ID -> a stand-in who may bid for that team - a captain who can't be there on auction
+   * night, say. The stand-in spends the captain's purse and fills the captain's roster; they have
+   * none of either themselves.
+   */
+  proxies: Record<string, TeamProxy>
   /** The qualifier mappool, in pool order. */
   mappool: QualifierMap[]
   /**
@@ -312,6 +325,16 @@ export interface TournamentState {
   mappoolSheet?: MappoolSheetConfig | null
   /** Where registrations were last imported from - also its own document. */
   registrationSheet?: RegistrationSheetConfig | null
+}
+
+/** Someone besides the captain who may bid for a team. */
+export interface TeamProxy {
+  discordId: string
+  /**
+   * Their Discord username, as the tournament guild knew it when an organiser named them - so the
+   * team card reads as a person rather than a number. `null` when nobody could look it up then.
+   */
+  username: string | null
 }
 
 /** An osu! account whose owner proved themselves through osu! OAuth2. */
@@ -391,7 +414,14 @@ export interface PlayerDto {
   ppRaw: number | null
   ppRank: number | null
   captainMode: CaptainMode
+  /** What is shown: an organiser's override if there is one, the sheet's text otherwise. */
   description: string | null
+  /**
+   * The sheet's own text, and whether an organiser has overridden it. Organisers only - an override
+   * is sometimes there precisely to keep the sheet's text off screen - so `null`/`false` otherwise.
+   */
+  sheetDescription: string | null
+  descriptionOverridden: boolean
   /** Whether this seed is inside the field that takes part - see `TournamentState.fieldSize`. */
   inField: boolean
   isCaptain: boolean
@@ -420,6 +450,10 @@ export interface TeamDto {
   captainSeed: number
   name: string
   discordId: string | null
+  /** Discord ID of whoever may bid for this team besides the captain. `null` for a guest viewer. */
+  proxyDiscordId: string | null
+  /** And their Discord username, when it could be looked up. `null` for a guest viewer. */
+  proxyUsername: string | null
   balance: number | null
   held: number | null
   spent: number

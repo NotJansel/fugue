@@ -104,13 +104,25 @@ export function useDashboard() {
   const teams = computed(() => state.value?.teams ?? [])
   const auction = computed(() => state.value?.auction ?? null)
 
-  /** The captain this session controls, if any - what makes the bid panel appear. */
-  const myCaptain = computed(() =>
-    user.value ? players.value.find(player => player.isCaptain && player.discordId === user.value?.id) ?? null : null
-  )
+  /**
+   * The team this session bids for, if any - what makes the bid panel appear. Its own as a captain
+   * first, the way the server decides, and failing that the one it stands in for.
+   */
+  const myTeam = computed(() => {
+    const id = user.value?.id
+    if (!id) return null
 
-  const myTeam = computed(() =>
-    myCaptain.value ? teams.value.find(team => team.captainOsuId === myCaptain.value?.osuId) ?? null : null
+    return teams.value.find(team => team.discordId === id)
+      ?? teams.value.find(team => team.proxyDiscordId === id)
+      ?? null
+  })
+
+  /** Whether this session bids for `myTeam` as its stand-in rather than as its captain. */
+  const standingIn = computed(() => myTeam.value != null && myTeam.value.discordId !== user.value?.id)
+
+  /** The captain whose purse this session bids from - its own, or the one it stands in for. */
+  const myCaptain = computed(() =>
+    myTeam.value ? players.value.find(player => player.osuId === myTeam.value?.captainOsuId) ?? null : null
   )
 
   return {
@@ -126,6 +138,7 @@ export function useDashboard() {
     teams,
     auction,
     myCaptain,
-    myTeam
+    myTeam,
+    standingIn
   }
 }

@@ -11,6 +11,7 @@ import {
   captainCount,
   captains,
   field,
+  playerDescription,
   qualifierResults,
   reserveFor,
   spareSheetColumns,
@@ -51,13 +52,22 @@ const redactPlayer = (player: PlayerDto): PlayerDto => ({
   discordId: null,
   discordUsername: null,
   discordVerified: false,
+  sheetDescription: null,
+  descriptionOverridden: false,
   balance: null,
   held: null,
   extra: {}
 })
 
 /** What a team looks like to a viewer who hasn't logged in. */
-const redactTeam = (team: TeamDto): TeamDto => ({ ...team, discordId: null, balance: null, held: null })
+const redactTeam = (team: TeamDto): TeamDto => ({
+  ...team,
+  discordId: null,
+  proxyDiscordId: null,
+  proxyUsername: null,
+  balance: null,
+  held: null
+})
 
 /**
  * Assembles the entire dashboard payload.
@@ -72,6 +82,7 @@ const redactTeam = (team: TeamDto): TeamDto => ({ ...team, discordId: null, bala
  */
 export function buildDashboardState(user: UserSession | null): DashboardState {
   const tournament = getTournament()
+  const admin = user?.admin === true
   const balances = getAllBalances()
   const holds = getAllHolds()
 
@@ -106,7 +117,11 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       ppRaw: player.ppRaw ?? null,
       ppRank: player.ppRank ?? null,
       captainMode: player.captainMode,
-      description: player.description ?? null,
+      description: playerDescription(player),
+      // An override is sometimes there to keep the sheet's text off screen, so only organisers - who
+      // need it to edit against - get to see what it replaced.
+      sheetDescription: admin ? player.description ?? null : null,
+      descriptionOverridden: admin && player.descriptionOverride != null,
       inField: takingPart.has(player.osuId),
       isCaptain: captainIds.has(player.osuId),
       soldTo: purchase?.captainOsuId ?? null,
@@ -129,6 +144,8 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       captainSeed: seeds.get(captain.osuId) ?? 0,
       name: tournament.teamNames[captain.osuId] ?? captain.username,
       discordId: captain.discordId ?? null,
+      proxyDiscordId: tournament.proxies?.[captain.osuId]?.discordId ?? null,
+      proxyUsername: tournament.proxies?.[captain.osuId]?.username ?? null,
       balance: captain.discordId ? balances[captain.discordId] ?? 0 : 0,
       held: captain.discordId ? holds[captain.discordId] ?? 0 : 0,
       spent: members.reduce((total, member) => total + member.price, 0),

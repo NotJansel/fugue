@@ -5,12 +5,12 @@ import type { AuctionSnapshot } from '#shared/types'
  * Where bids are placed - the one non-admin write in the whole dashboard.
  *
  * The bidder is never sent: the server takes it from the session and checks that the Discord account
- * owns a captain, so a bid can't be placed as someone else. All this panel does is help you pick a
- * number your purse can actually cover.
+ * owns a captain or stands in for one, so a bid can't be placed as someone else. All this panel does
+ * is help you pick a number the team's purse can actually cover.
  */
 const props = defineProps<{ auction: AuctionSnapshot }>()
 
-const { state, api, user, myCaptain, myTeam } = useDashboard()
+const { state, api, myCaptain, myTeam, standingIn, user } = useDashboard()
 const { t } = useLang()
 const { money } = useFormat()
 
@@ -18,7 +18,11 @@ const amount = ref<number>(0)
 const pending = ref(false)
 
 const available = computed(() => (myTeam.value?.balance ?? 0) - (myTeam.value?.held ?? 0))
-const leading = computed(() => props.auction.highestBidderId != null && props.auction.highestBidderId === user.value?.id)
+// The lead is held under the captain's Discord ID whoever placed the bid, so a captain and their
+// stand-in lead together.
+const leading = computed(() =>
+  props.auction.highestBidderId != null && props.auction.highestBidderId === myTeam.value?.discordId
+)
 
 /** Gold that cannot be spent here, because the team still has to reach its smallest legal size. */
 const reserved = computed(() => myTeam.value?.reserved ?? 0)
@@ -125,6 +129,13 @@ async function bid() {
       v-else
       class="space-y-4"
     >
+      <p
+        v-if="standingIn"
+        class="rounded-lg bg-secondary/10 px-3 py-2 text-xs text-toned"
+      >
+        {{ t('auction.bid.standingIn', { team: myTeam?.name ?? myCaptain.username }) }}
+      </p>
+
       <div class="grid grid-cols-2 gap-3">
         <div class="rounded-lg bg-elevated/50 px-3 py-2">
           <p class="text-[11px] uppercase tracking-wider text-muted">

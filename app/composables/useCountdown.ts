@@ -20,8 +20,12 @@ export function useCountdown(endsAt: Ref<number | null | undefined>) {
 
   const remainingMs = computed(() => endsAt.value ? Math.max(endsAt.value - now.value, 0) : 0)
   const seconds = computed(() => Math.ceil(remainingMs.value / 1000))
-  /** 1 at the start of the countdown, 0 when it lapses - what the progress ring reads. */
-  const fraction = computed(() => Math.min(remainingMs.value / 15_000, 1))
+  /**
+   * 1 at the start of the countdown, 0 when it lapses - what the progress ring reads. Measured against
+   * the 20 seconds an auction opens with (`AUCTION_DURATION_MS` on the server), so a late bid that
+   * puts the clock back up to 10 shows as the ring refilling halfway.
+   */
+  const fraction = computed(() => Math.min(remainingMs.value / 20_000, 1))
 
   return { seconds, remainingMs, fraction }
 }

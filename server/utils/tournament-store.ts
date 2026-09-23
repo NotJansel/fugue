@@ -11,6 +11,7 @@ import type {
   RegistrationSheetConfig,
   SheetImportConfig,
   TeamMember,
+  TeamProxy,
   TournamentPlayer,
   TournamentState
 } from '#shared/types'
@@ -63,6 +64,7 @@ interface PlayerRow {
   country_code: string | null
   captain_mode: string
   description: string | null
+  description_override: string | null
   extra: Record<string, string>
 }
 
@@ -103,11 +105,16 @@ interface SheetRow {
 
 /** Reads the whole tournament back into memory. Nothing else in the process queries these tables. */
 export async function loadTournament(): Promise<void> {
-  const [settings, players, rosterRows, teamNameRows, mappoolRows, sheetRows, removedRows] = await Promise.all([
+  const [
+    settings, players, rosterRows, teamNameRows, proxyRows, mappoolRows, sheetRows, removedRows
+  ] = await Promise.all([
     query<SettingsRow>('SELECT * FROM tournament_settings WHERE id'),
     query<PlayerRow>('SELECT * FROM players ORDER BY seed'),
     query<RosterRow>('SELECT captain_osu_id, player_osu_id, price FROM rosters ORDER BY captain_osu_id, position'),
     query<{ captain_osu_id: string, name: string }>('SELECT captain_osu_id, name FROM team_names'),
+    query<{ captain_osu_id: string, discord_id: string, username: string | null }>(
+      'SELECT captain_osu_id, discord_id, username FROM team_proxies'
+    ),
     query<MappoolRow>('SELECT * FROM mappool ORDER BY position'),
     query<SheetRow>('SELECT * FROM sheet_config'),
     query<{ player: TournamentPlayer }>('SELECT player FROM removed_players ORDER BY position')
@@ -142,6 +149,10 @@ export async function loadTournament(): Promise<void> {
     defaultMaxBid: row?.default_max_bid ?? defaults.defaultMaxBid,
     rosters,
     teamNames: Object.fromEntries(teamNameRows.map(name => [name.captain_osu_id, name.name])),
+    proxies: Object.fromEntries(proxyRows.map(proxy => [
+      proxy.captain_osu_id,
+      { discordId: proxy.discord_id, username: proxy.username }
+    ])),
     mappool: mappoolRows.map(readMap),
     removedPlayers: removedRows.map(row => row.player),
     sheet: qualifier ? readSheet(qualifier) : null,
@@ -162,6 +173,7 @@ const readPlayer = (row: PlayerRow): TournamentPlayer => ({
   countryCode: row.country_code,
   captainMode: row.captain_mode as CaptainMode,
   description: row.description,
+  descriptionOverride: row.description_override,
   extra: row.extra ?? {}
 })
 
@@ -239,13 +251,13 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
     player.osuId, seed, player.username, player.discordId ?? null, player.discordUsername ?? null,
     player.qualScore ?? null, player.sheetSeed ?? null, player.ppRaw ?? null, player.ppRank ?? null,
     player.countryCode ?? null, player.captainMode, player.description ?? null,
-    JSON.stringify(player.extra ?? {})
+    player.descriptionOverride ?? null, JSON.stringify(player.extra ?? {})
   ])
   if (players) {
     await client.query(
       `INSERT INTO players (
          osu_id, seed, username, discord_id, discord_username, qual_score, sheet_seed, pp_raw, pp_rank,
-         country_code, captain_mode, description, extra
+         country_code, captain_mode, description, description_override, extra
        ) VALUES ${players.text}`,
       players.values
     )
@@ -266,6 +278,17 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   const names = valuesList(Object.entries(next.teamNames), entry => entry)
   if (names) {
     await client.query(`INSERT INTO team_names (captain_osu_id, name) VALUES ${names.text}`, names.values)
+  }
+
+  const proxies = valuesList(
+    Object.entries(next.proxies ?? {}),
+    ([captainOsuId, proxy]) => [captainOsuId, proxy.discordId, proxy.username ?? null]
+  )
+  if (proxies) {
+    await client.query(
+      `INSERT INTO team_proxies (captain_osu_id, discord_id, username) VALUES ${proxies.text}`,
+      proxies.values
+    )
   }
 
   await client.query('DELETE FROM mappool')
@@ -373,8 +396,14 @@ function existingPlayerLookup(players: TournamentPlayer[]): (imported: Tournamen
   return imported => byId.get(imported.osuId) ?? byName.get(imported.username.toLowerCase())
 }
 
-/** Rosters and team names cut down to the players in `players` - whoever else is gone, so is their team. */
-function prunedTo(current: TournamentState, players: TournamentPlayer[]): Pick<TournamentState, 'rosters' | 'teamNames'> {
+/**
+ * Rosters, team names and stand-ins cut down to the players in `players` - whoever else is gone, so
+ * is their team.
+ */
+function prunedTo(
+  current: TournamentState,
+  players: TournamentPlayer[]
+): Pick<TournamentState, 'rosters' | 'teamNames' | 'proxies'> {
   const known = new Set(players.map(player => player.osuId))
 
   const rosters: TournamentState['rosters'] = {}
@@ -389,7 +418,11 @@ function prunedTo(current: TournamentState, players: TournamentPlayer[]): Pick<T
     Object.entries(current.teamNames).filter(([captainOsuId]) => known.has(captainOsuId))
   )
 
-  return { rosters, teamNames }
+  const proxies = Object.fromEntries(
+    Object.entries(current.proxies ?? {}).filter(([captainOsuId]) => known.has(captainOsuId))
+  )
+
+  return { rosters, teamNames, proxies }
 }
 
 /** Whether an imported row stands for a player an organiser took off the list. */
@@ -403,8 +436,9 @@ const removedLookup = (current: TournamentState): (imported: TournamentPlayer) =
  * Replaces the player list from a fresh import.
  *
  * Manual work is preserved wherever it can be: a player who is still in the sheet keeps their
- * Discord link (unless the sheet now supplies one), their captain override and their description
- * (unless the import maps a description column). Rosters are pruned to players that still exist,
+ * Discord link (unless the sheet now supplies one), their captain override, their description
+ * (unless the import maps a description column) and, whatever the sheet says, an organiser's
+ * override of that description. Rosters are pruned to players that still exist,
  * and anyone an organiser removed by hand stays removed however often the sheet lists them.
  */
 export function replacePlayers(
@@ -425,7 +459,8 @@ export function replacePlayers(
         discordUsername: imported.discordUsername ?? existing.discordUsername,
         countryCode: imported.countryCode ?? existing.countryCode,
         captainMode: imported.captainMode === 'AUTO' ? existing.captainMode : imported.captainMode,
-        description: imported.description === undefined ? existing.description : imported.description
+        description: imported.description === undefined ? existing.description : imported.description,
+        descriptionOverride: existing.descriptionOverride
       }
     })
 
@@ -613,6 +648,9 @@ export async function mergeRegistrations(
       teamNames: Object.fromEntries(
         Object.entries(current.teamNames).map(([captainOsuId, name]) => [rekey(captainOsuId), name])
       ),
+      proxies: Object.fromEntries(
+        Object.entries(current.proxies ?? {}).map(([captainOsuId, proxy]) => [rekey(captainOsuId), proxy])
+      ),
       registrationSheet: sheet
     }
   })
@@ -661,6 +699,14 @@ export const setDiscordId = (osuId: string, discordId: string | null): Promise<T
   updatePlayer(osuId, player => ({ ...player, discordId: discordId?.trim() || null }))
 
 /**
+ * Sets what an organiser wants shown in place of a player's own description, or with `null` takes
+ * the override away so the sheet's text shows again. An empty string is kept as one: it hides the
+ * description rather than falling back to it.
+ */
+export const setDescriptionOverride = (osuId: string, text: string | null): Promise<TournamentState> =>
+  updatePlayer(osuId, player => ({ ...player, descriptionOverride: text == null ? null : text.trim() }))
+
+/**
  * Links a player to the Discord account that just proved ownership of their osu! account.
  *
  * The Discord ID is taken off any other player first: bids are keyed by Discord ID, so one account
@@ -695,6 +741,18 @@ export function setTeamName(captainOsuId: string, name: string | null): Promise<
     const trimmed = name?.trim()
 
     return { ...current, teamNames: trimmed ? { ...rest, [captainOsuId]: trimmed } : rest }
+  })
+}
+
+/**
+ * Lets `proxy` bid for the team `captainOsuId` leads, or with `null` stops anyone but the captain
+ * from doing so. One stand-in per team; setting another replaces the first.
+ */
+export function setProxy(captainOsuId: string, proxy: TeamProxy | null): Promise<TournamentState> {
+  return update((current) => {
+    const { [captainOsuId]: _dropped, ...rest } = current.proxies ?? {}
+
+    return { ...current, proxies: proxy ? { ...rest, [captainOsuId]: proxy } : rest }
   })
 }
 

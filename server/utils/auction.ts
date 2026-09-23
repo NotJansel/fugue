@@ -3,7 +3,7 @@ import type { AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
 import { getBalance, release, reserve, settleHold } from './purse-store'
-import { captainForDiscordId, reserveFor } from './tournament-model'
+import { captainForBidder, captainForDiscordId, reserveFor } from './tournament-model'
 import { getTournament, recordSale } from './tournament-store'
 
 /** The player being auctioned, as supplied by whoever started the auction. */
@@ -30,8 +30,10 @@ export type BidResult
     | 'BELOW_STARTING'
     | 'NOT_HIGHER'
     | 'INSUFFICIENT_FUNDS'
-    /** The Discord account behind the bid does not own a captain. */
+    /** The Discord account behind the bid neither owns a captain nor stands in for one. */
     | 'NOT_CAPTAIN'
+    /** A stand-in bid for a captain with no Discord account, so no purse to spend. */
+    | 'CAPTAIN_UNLINKED'
     /** The bidder's roster is already at the largest legal team. */
     | 'TEAM_FULL'
     /** A raise has to clear the standing bid by the tournament's minimum step. */
@@ -41,7 +43,15 @@ export type BidResult
     /** Winning would leave too little to fill the roster to the smallest legal team. */
     | 'BREAKS_RESERVE'
 
-const BID_TIMEOUT_MS = 20_000
+/** How long an auction runs from the moment it opens, if nobody bids. */
+const AUCTION_DURATION_MS = 20_000
+
+/**
+ * The least a bid leaves on the clock. A bid does not restart the countdown - one placed with more
+ * than this left changes nothing about when it ends - but one in the closing seconds puts it back up
+ * to this, so everyone else still gets a fair chance to answer it.
+ */
+const BID_EXTENSION_MS = 10_000
 
 interface AuctionState {
   messageId: string
@@ -50,6 +60,7 @@ interface AuctionState {
   startingBid: number
   maxBid: number
   highestBid: number
+  /** Discord ID of the leading *captain* - the purse holding the bid - even when a stand-in placed it. */
   highestBidder: string | null
   endsAt: number
   timer: NodeJS.Timeout | null
@@ -147,14 +158,14 @@ async function announce(auction: AuctionState, result: string, roster: string | 
   }
 }
 
-/** Must only be called from inside `withLock`. */
-function scheduleTimer(auction: AuctionState): void {
+/** Sets the auction to end `durationMs` from now. Must only be called from inside `withLock`. */
+function scheduleTimer(auction: AuctionState, durationMs: number): void {
   if (auction.timer) clearTimeout(auction.timer)
 
-  auction.endsAt = Date.now() + BID_TIMEOUT_MS
+  auction.endsAt = Date.now() + durationMs
   auction.timer = setTimeout(() => {
     void withLock(() => end(auction)).then(() => emitChange())
-  }, BID_TIMEOUT_MS)
+  }, durationMs)
 }
 
 /** Must only be called from inside `withLock`. */
@@ -246,7 +257,7 @@ export function startAuction(
     }
 
     current = auction
-    scheduleTimer(auction)
+    scheduleTimer(auction, AUCTION_DURATION_MS)
     emitChange()
 
     return { kind: 'started', snapshot: toSnapshot(auction) }
@@ -274,16 +285,25 @@ export function cancelAuction(): Promise<string | null> {
  *
  * Bids only come from the dashboard, where the bidder is the signed-in session rather than whoever
  * typed in a channel - so there is no channel to check them against.
+ *
+ * The bidder may be the captain or the team's stand-in. Either way the bid is the *captain's*: it is
+ * held on the captain's purse and led under the captain's Discord ID, so the two of them can never
+ * outbid each other, and whatever is won lands on the captain's roster.
  */
 export function submitBid(bidderId: string, amount: number): Promise<BidResult> {
   return withLock(async (): Promise<BidResult> => {
     const auction = current
     if (!auction) return 'NO_AUCTION'
-    if (auction.highestBidder === bidderId) return 'ALREADY_HIGHEST'
 
     const tournament = getTournament()
-    const captain = captainForDiscordId(tournament, bidderId)
+    const captain = captainForBidder(tournament, bidderId)
     if (!captain) return 'NOT_CAPTAIN'
+
+    // Purses are keyed by Discord ID, and a stand-in has none of their own to fall back on.
+    const purseId = captain.discordId
+    if (!purseId) return 'CAPTAIN_UNLINKED'
+
+    if (auction.highestBidder === purseId) return 'ALREADY_HIGHEST'
 
     // A roster at the largest legal team is closed - there is nowhere to put another player.
     const bought = tournament.rosters[captain.osuId]?.length ?? 0
@@ -307,23 +327,24 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
 
     // Plain affordability first: a captain who cannot cover the bid at all is not being held back by
     // the reserve, and saying so would send them looking for a rule that isn't the problem.
-    if (getBalance(bidderId) < amount) return 'INSUFFICIENT_FUNDS'
+    if (getBalance(purseId) < amount) return 'INSUFFICIENT_FUNDS'
 
     // Winning must still leave enough to fill the roster to the smallest legal team.
-    if (getBalance(bidderId) - amount < reserveFor(tournament, captain.osuId)) return 'BREAKS_RESERVE'
+    if (getBalance(purseId) - amount < reserveFor(tournament, captain.osuId)) return 'BREAKS_RESERVE'
 
-    if (!reserve(bidderId, amount)) return 'INSUFFICIENT_FUNDS'
+    if (!reserve(purseId, amount)) return 'INSUFFICIENT_FUNDS'
 
     // The previous leader has been outbid - give them their funds back.
     if (auction.highestBidder) release(auction.highestBidder)
 
     auction.highestBid = amount
-    auction.highestBidder = bidderId
+    auction.highestBidder = purseId
 
-    await updateMessage(auction, `Current highest bid: ${amount} by <@${bidderId}>`)
+    const via = bidderId === purseId ? '' : ` (via <@${bidderId}>)`
+    await updateMessage(auction, `Current highest bid: ${amount} by <@${purseId}>${via}`)
 
     if (auction.highestBid >= auction.maxBid) await end(auction)
-    else scheduleTimer(auction)
+    else if (auction.endsAt - Date.now() < BID_EXTENSION_MS) scheduleTimer(auction, BID_EXTENSION_MS)
 
     emitChange()
 

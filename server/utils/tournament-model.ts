@@ -30,6 +30,7 @@ export const emptyTournament = (): TournamentState => ({
   defaultMaxBid: 0,
   rosters: {},
   teamNames: {},
+  proxies: {},
   mappool: [],
   removedPlayers: [],
   sheet: null,
@@ -152,9 +153,33 @@ export function reserveFor(state: TournamentState, captainOsuId: string): number
   return stillNeeded * startingBid(state)
 }
 
-/** Finds the captain a Discord user controls, if any. */
+/** Finds the captain a Discord user controls, if any - the owner of the purse, not a stand-in. */
 export function captainForDiscordId(state: TournamentState, discordId: string): TournamentPlayer | null {
   return captains(state).find(player => player.discordId === discordId) ?? null
+}
+
+/**
+ * Finds the captain a Discord user may bid for: their own, or failing that the one they stand in for.
+ *
+ * Their own comes first, so a stand-in who has since become a captain bids for their own team. The
+ * purse either way is the captain's - a stand-in has none of their own.
+ */
+export function captainForBidder(state: TournamentState, discordId: string): TournamentPlayer | null {
+  const chosen = captains(state)
+
+  return chosen.find(player => player.discordId === discordId)
+    ?? chosen.find(player => state.proxies?.[player.osuId]?.discordId === discordId)
+    ?? null
+}
+
+/**
+ * The description a player is shown with: an organiser's override if there is one, the sheet's text
+ * otherwise. An override left blank hides it, which is what it is there for as often as not.
+ */
+export function playerDescription(player: TournamentPlayer): string | null {
+  const text = player.descriptionOverride ?? player.description
+
+  return text?.trim() || null
 }
 
 /**

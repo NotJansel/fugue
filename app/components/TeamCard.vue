@@ -21,6 +21,19 @@ async function rename() {
   await api('/api/teams/name', { captainOsuId: props.team.captainOsuId, name: draft.value.trim() }, { quiet: true })
 }
 
+/** The stand-in's Discord ID being typed, or `null` while the editor is closed. */
+const proxyDraft = ref<string | null>(null)
+
+async function saveProxy() {
+  const discordId = proxyDraft.value?.trim() || null
+  proxyDraft.value = null
+  if (discordId === props.team.proxyDiscordId) return
+
+  await api('/api/teams/proxy', { captainOsuId: props.team.captainOsuId, discordId })
+}
+
+const clearProxy = () => api('/api/teams/proxy', { captainOsuId: props.team.captainOsuId, discordId: null })
+
 const remove = (osuId: string) =>
   api('/api/rosters/remove', { captainOsuId: props.team.captainOsuId, osuId }, { quiet: true })
 
@@ -120,6 +133,85 @@ const spentFraction = computed(() => {
       >
         {{ t('teams.noDiscord') }}
       </p>
+
+      <div
+        v-if="proxyDraft != null"
+        class="space-y-1.5"
+      >
+        <div class="flex gap-2">
+          <UInput
+            v-model="proxyDraft"
+            size="sm"
+            autofocus
+            inputmode="numeric"
+            :placeholder="t('teams.proxy.placeholder')"
+            class="flex-1"
+            @keyup.enter="saveProxy"
+            @keyup.escape="proxyDraft = null"
+          />
+          <UButton
+            icon="i-lucide-check"
+            size="sm"
+            :aria-label="t('common.save')"
+            @click="saveProxy"
+          />
+        </div>
+        <p class="text-xs text-muted">
+          {{ t('teams.proxy.hint') }}
+        </p>
+      </div>
+
+      <div
+        v-else-if="team.proxyDiscordId"
+        class="flex items-center gap-2 text-xs text-muted"
+      >
+        <UIcon
+          name="i-lucide-user-round-cog"
+          class="size-3.5 shrink-0"
+        />
+        <span class="min-w-0 flex-1 truncate">
+          {{ t('teams.proxy.label') }}
+          <span
+            v-if="team.proxyUsername"
+            class="text-toned"
+            :title="team.proxyDiscordId"
+          >@{{ team.proxyUsername }}</span>
+          <span
+            v-else
+            class="text-toned tnum"
+          >{{ team.proxyDiscordId }}</span>
+        </span>
+        <template v-if="isAdmin">
+          <UButton
+            icon="i-lucide-pencil"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            :aria-label="t('common.edit')"
+            @click="proxyDraft = team.proxyDiscordId"
+          />
+          <UButton
+            icon="i-lucide-x"
+            size="xs"
+            color="error"
+            variant="ghost"
+            :aria-label="t('common.remove')"
+            @click="clearProxy"
+          />
+        </template>
+      </div>
+
+      <UButton
+        v-else-if="isAdmin"
+        icon="i-lucide-user-round-plus"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        class="-ml-2"
+        @click="proxyDraft = ''"
+      >
+        {{ t('teams.proxy.add') }}
+      </UButton>
 
       <ul
         v-if="team.members.length"

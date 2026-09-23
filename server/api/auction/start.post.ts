@@ -5,7 +5,7 @@ import { config } from '../../utils/config'
 import { apiError } from '../../utils/http-error'
 import { fetchOsuUser, osuApiReady } from '../../utils/osu-api'
 import { requireAdmin } from '../../utils/session'
-import { pool, startingBid } from '../../utils/tournament-model'
+import { playerDescription, pool, startingBid } from '../../utils/tournament-model'
 import { getTournament, replacePlayers } from '../../utils/tournament-store'
 
 interface Body {
@@ -73,7 +73,7 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
       ppRaw: player.ppRaw ?? 0,
       ppRank: player.ppRank ?? 0,
       seed: index + 1,
-      description: player.description ?? null
+      description: playerDescription(player)
     },
     body.startingBid ?? startingBid(tournament),
     body.maxBid ?? tournament.defaultMaxBid

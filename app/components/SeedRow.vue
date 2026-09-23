@@ -9,7 +9,10 @@ import type { CaptainMode, PlayerDto } from '#shared/types'
  */
 defineProps<{
   player: PlayerDto
+  /** Whether the list may be reordered and changed - an organiser, with the seeding unlocked. */
   editable: boolean
+  /** Whether the description may be overridden - an organiser, locked or not, since no seed moves. */
+  describable: boolean
   canMoveUp: boolean
   canMoveDown: boolean
 }>()
@@ -18,6 +21,7 @@ const emit = defineEmits<{
   move: [toIndex: number]
   mode: [mode: CaptainMode]
   remove: []
+  describe: []
   dragstart: []
   drop: []
 }>()
@@ -81,7 +85,19 @@ const onDrop = () => {
         class="mt-0.5 line-clamp-2 text-xs text-toned"
         :title="player.description"
       >
+        <UIcon
+          v-if="player.descriptionOverridden"
+          name="i-lucide-pen-line"
+          class="inline size-3 align-[-1px] text-secondary"
+          :aria-label="t('seeding.description.overridden')"
+        />
         {{ player.description }}
+      </p>
+      <p
+        v-else-if="player.descriptionOverridden"
+        class="mt-0.5 text-xs italic text-muted"
+      >
+        {{ t('seeding.description.hidden') }}
       </p>
     </div>
 
@@ -93,6 +109,17 @@ const onDrop = () => {
     >
       {{ player.price }} €
     </UBadge>
+
+    <UButton
+      v-if="describable"
+      icon="i-lucide-message-square-text"
+      size="xs"
+      color="neutral"
+      variant="ghost"
+      class="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+      :aria-label="t('seeding.description.edit')"
+      @click="emit('describe')"
+    />
 
     <template v-if="editable">
       <div class="hidden sm:flex opacity-0 group-hover:opacity-100 transition-opacity">

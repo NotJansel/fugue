@@ -40,6 +40,29 @@ async function remove() {
   await api('/api/players/remove', { osuId: player.osuId })
 }
 
+/** The player whose description is being overridden, and the text in the box. */
+const describing = ref<PlayerDto | null>(null)
+const descriptionDraft = ref('')
+
+function describe(player: PlayerDto) {
+  describing.value = player
+  descriptionDraft.value = player.description ?? ''
+}
+
+/** `null` takes the override away, so the sheet's own text shows again. */
+async function saveDescription(description: string | null) {
+  const player = describing.value
+  describing.value = null
+  if (!player) return
+
+  // Text left as the sheet has it is no override at all - saved as one, it would only stop a later
+  // import from bringing the player's own edits through.
+  const asSheet = description != null && description.trim() === (player.sheetDescription ?? '').trim()
+  if (asSheet && !player.descriptionOverridden) return
+
+  await api('/api/players/description', { osuId: player.osuId, description: asSheet ? null : description })
+}
+
 /** Whether any result is on file to seed by - what makes the reseed button worth showing. */
 const hasResults = computed(() => players.value.some(player => player.zSum != null))
 
@@ -190,11 +213,13 @@ async function reseed() {
             :key="player.osuId"
             :player="player"
             :editable="editable"
+            :describable="isAdmin"
             :can-move-up="player.seed > 1"
             :can-move-down="player.seed < players.length"
             @move="move(player.osuId, $event)"
             @mode="setMode(player.osuId, $event)"
             @remove="removing = player"
+            @describe="describe(player)"
             @dragstart="dragging = player"
             @drop="drop(player)"
           />
@@ -229,11 +254,13 @@ async function reseed() {
             :key="player.osuId"
             :player="player"
             :editable="editable"
+            :describable="isAdmin"
             :can-move-up="player.seed > 1"
             :can-move-down="player.seed < players.length"
             @move="move(player.osuId, $event)"
             @mode="setMode(player.osuId, $event)"
             @remove="removing = player"
+            @describe="describe(player)"
             @dragstart="dragging = player"
             @drop="drop(player)"
           />
@@ -246,6 +273,65 @@ async function reseed() {
         </p>
       </section>
     </div>
+
+    <UModal
+      :open="describing != null"
+      :title="t('seeding.description.edit')"
+      :description="describing ? t('seeding.description.hint', { name: describing.username }) : ''"
+      @update:open="describing = $event ? describing : null"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <UTextarea
+            v-model="descriptionDraft"
+            :rows="5"
+            autoresize
+            autofocus
+            class="w-full"
+          />
+
+          <div
+            v-if="describing?.sheetDescription"
+            class="space-y-1"
+          >
+            <p class="text-[11px] uppercase tracking-wider text-muted">
+              {{ t('seeding.description.fromSheet') }}
+            </p>
+            <p class="whitespace-pre-line border-l-2 border-default pl-3 text-xs text-muted">
+              {{ describing.sheetDescription }}
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="flex w-full flex-wrap justify-between gap-2">
+          <UButton
+            v-if="describing?.descriptionOverridden"
+            color="neutral"
+            variant="subtle"
+            icon="i-lucide-rotate-ccw"
+            @click="saveDescription(null)"
+          >
+            {{ t('seeding.description.reset') }}
+          </UButton>
+          <span v-else />
+
+          <div class="flex gap-2">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              @click="describing = null"
+            >
+              {{ t('common.cancel') }}
+            </UButton>
+            <UButton @click="saveDescription(descriptionDraft)">
+              {{ t('common.save') }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
 
     <UModal
       :open="removing != null"

@@ -140,6 +140,8 @@ const schema = `
     country_code  text,
     captain_mode  text NOT NULL DEFAULT 'AUTO',
     description   text,
+    -- What an organiser wrote in place of description. NULL for none; '' hides it.
+    description_override  text,
     -- Sheet columns not bound to a field, including the per-map scores.
     extra         jsonb NOT NULL DEFAULT '{}'::jsonb
   );
@@ -148,6 +150,7 @@ const schema = `
   ALTER TABLE players ADD COLUMN IF NOT EXISTS description text;
   ALTER TABLE players ADD COLUMN IF NOT EXISTS discord_username text;
   ALTER TABLE players ADD COLUMN IF NOT EXISTS country_code text;
+  ALTER TABLE players ADD COLUMN IF NOT EXISTS description_override text;
 
   CREATE UNIQUE INDEX IF NOT EXISTS players_seed_idx ON players (seed);
 
@@ -164,6 +167,16 @@ const schema = `
     captain_osu_id  text PRIMARY KEY REFERENCES players (osu_id) ON DELETE CASCADE,
     name            text NOT NULL
   );
+
+  -- Someone besides the captain who may bid for a team, spending the captain's purse.
+  CREATE TABLE IF NOT EXISTS team_proxies (
+    captain_osu_id  text PRIMARY KEY REFERENCES players (osu_id) ON DELETE CASCADE,
+    discord_id      text NOT NULL,
+    -- As the guild knew them when they were named; NULL when the bot could not look them up.
+    username        text
+  );
+
+  ALTER TABLE team_proxies ADD COLUMN IF NOT EXISTS username text;
 
   CREATE TABLE IF NOT EXISTS mappool (
     id              text PRIMARY KEY,

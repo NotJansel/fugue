@@ -8,6 +8,11 @@ import { requireSession } from '../../utils/session'
 const rejections: Record<string, { status: number, reason: string, code: string }> = {
   NO_AUCTION: { status: 409, reason: 'No auction is currently running.', code: 'err.auction.none' },
   NOT_CAPTAIN: { status: 403, reason: 'Only captains can bid.', code: 'err.bid.notCaptain' },
+  CAPTAIN_UNLINKED: {
+    status: 409,
+    reason: 'The captain you bid for has no Discord account linked, so there is no purse to bid from.',
+    code: 'err.bid.captainUnlinked'
+  },
   TEAM_FULL: { status: 409, reason: 'Your team is already full.', code: 'err.bid.teamFull' },
   BELOW_MIN_STEP: { status: 400, reason: 'That does not raise the bid by enough.', code: 'err.bid.minStep' },
   ABOVE_MAX_STEP: { status: 400, reason: 'That raises the bid by too much at once.', code: 'err.bid.maxStep' },
@@ -26,9 +31,9 @@ const rejections: Record<string, { status: number, reason: string, code: string 
 /**
  * The only way to bid.
  *
- * Unlike every other write here this is not admin-only - it is captain-only, and the bidder is taken
- * from the session rather than the request, so nobody can bid as someone else or spend a purse that
- * isn't theirs.
+ * Unlike every other write here this is not admin-only - it is captain-only, or for the one stand-in
+ * an organiser named for a team, and the bidder is taken from the session rather than the request, so
+ * nobody can bid as someone else or spend a purse that isn't theirs or their team's.
  */
 export default defineEventHandler(async (event): Promise<ApiOk> => {
   const session = await requireSession(event)

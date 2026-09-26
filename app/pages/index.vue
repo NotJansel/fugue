@@ -51,6 +51,25 @@ const quals = computed(() => {
 const coverFor = (map: QualifierMap): string | null =>
   map.beatmapsetId ? `https://assets.ppy.sh/beatmaps/${map.beatmapsetId}/covers/cover.jpg` : null
 
+/**
+ * A tile's border by the slot's mod bracket - the letters its name starts with ("HD2" -> HD), the
+ * way the seeding export groups them, or the slot's mods when the name has no letters. Brackets with
+ * no colour of their own (TB, EZ, ...) keep the plain border.
+ */
+const BRACKET_BORDERS: Record<string, string> = {
+  NM: 'border-zinc-400/70',
+  HD: 'border-yellow-400/70',
+  HR: 'border-red-500/70',
+  DT: 'border-violet-500/70',
+  FM: 'border-green-500/70'
+}
+
+const borderFor = (map: QualifierMap): string => {
+  const bracket = (/^[a-z]+/i.exec(map.label.trim())?.[0] ?? '').toUpperCase() || map.mods || 'NM'
+
+  return BRACKET_BORDERS[bracket] ?? 'border-default/50'
+}
+
 /** A sheet cell is shown as written; a read or typed-in score is a number and gets the viewer's grouping. */
 const cellText = (cell: MapScore): string => cell.source === 'sheet' ? cell.display : number(cell.value)
 
@@ -170,7 +189,8 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
                 <div
                   v-for="entry in quals"
                   :key="entry.map.id"
-                  class="relative overflow-hidden rounded-lg border border-default/50 bg-elevated/30"
+                  class="relative overflow-hidden rounded-lg border bg-elevated/30"
+                  :class="borderFor(entry.map)"
                   :title="entry.map.title ?? undefined"
                 >
                   <div

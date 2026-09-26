@@ -287,7 +287,8 @@ export interface TournamentState {
   maxBidIncrement: number
   /**
    * Whether the pool is on its second time round, where whatever went unsold is offered again at
-   * half the starting price. The ceiling and the increments are unchanged by it.
+   * half the starting price, and the minimum raise is brought down to 50 if it is above that. The
+   * ceiling and the maximum raise are unchanged by it.
    */
   secondRun: boolean
   /**
@@ -483,6 +484,8 @@ export interface ConfigDto {
   modMultipliers: Record<string, number>
   /** What an auction started right now would open at - halved while `secondRun` is on. */
   startingBid: number
+  /** The minimum raise in force right now - `minBidIncrement`, capped at 50 while `secondRun` is on. */
+  bidIncrement: number
   seedingLocked: boolean
   auctionChannelConfigured: boolean
   /**

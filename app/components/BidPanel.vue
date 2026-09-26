@@ -41,7 +41,7 @@ const standing = computed(() =>
 
 const minimum = computed(() => props.auction.highestBidderId == null
   ? props.auction.startingBid
-  : standing.value + Math.max(state.value?.config.minBidIncrement ?? 1, 1))
+  : standing.value + (state.value?.config.bidIncrement ?? 1))
 
 const maximum = computed(() => {
   const step = state.value?.config.maxBidIncrement ?? 0
@@ -54,7 +54,8 @@ watchEffect(() => {
   if (amount.value < minimum.value) amount.value = Math.min(minimum.value, props.auction.maxBid)
 })
 
-const steps = [100, 500, 1000]
+/** Quick raises - finer on the second run, where the players cost half and the minimum raise is 50. */
+const steps = computed(() => state.value?.config.secondRun ? [50, 100, 500] : [100, 500, 1000])
 
 const bump = (by: number) => {
   amount.value = Math.min(Math.max(amount.value + by, minimum.value), maximum.value)
@@ -174,7 +175,7 @@ async function bid() {
           v-model="amount"
           :min="minimum"
           :max="maximum"
-          :step="state?.config.minBidIncrement ?? 1"
+          :step="state?.config.bidIncrement ?? 1"
           size="xl"
           class="w-full"
           :ui="{ base: 'tnum font-display text-xl' }"

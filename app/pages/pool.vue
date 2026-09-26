@@ -91,7 +91,7 @@ async function start(osuId: string) {
       icon="i-lucide-percent"
       color="secondary"
       variant="subtle"
-      :description="t('pool.secondRunOn')"
+      :description="t('pool.secondRunOn', { step: money(state?.config.bidIncrement ?? 1) })"
     />
 
     <UAlert

@@ -136,11 +136,27 @@ export function unsoldPool(state: TournamentState): TournamentPlayer[] {
 /**
  * What an auction started right now opens at.
  *
- * The second time round the pool, whatever went unsold is offered at half price - the ceiling and
- * the increments stay where they were, only the entry gets cheaper.
+ * The second time round the pool, whatever went unsold is offered at half price - the ceiling stays
+ * where it was, only the entry gets cheaper (and the raises finer, see `minBidIncrement`).
  */
 export const startingBid = (state: TournamentState): number =>
   state.secondRun ? Math.round(state.defaultStartingBid / 2) : state.defaultStartingBid
+
+/** The largest minimum raise the second run allows. */
+const SECOND_RUN_BID_INCREMENT = 50
+
+/**
+ * How much a bid has to raise the standing one by, at the least, right now.
+ *
+ * The second run sells cheaper players, so the configured step is brought down to 50 while it is on -
+ * a step fit for a full-price auction would otherwise be most of what a half-price player costs. A
+ * step already below that is left alone, and the configured one comes back once the run is over.
+ */
+export const minBidIncrement = (state: TournamentState): number => {
+  const configured = Math.max(state.minBidIncrement, 1)
+
+  return state.secondRun ? Math.min(configured, SECOND_RUN_BID_INCREMENT) : configured
+}
 
 /**
  * Gold a captain must still be able to spend after a bid, to fill their team to the smallest legal

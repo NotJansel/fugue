@@ -3,7 +3,7 @@ import type { AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
 import { getBalance, release, reserve, settleHold } from './purse-store'
-import { captainForBidder, captainForDiscordId, reserveFor } from './tournament-model'
+import { captainForBidder, captainForDiscordId, minBidIncrement, reserveFor } from './tournament-model'
 import { getTournament, recordSale } from './tournament-store'
 
 /** The player being auctioned, as supplied by whoever started the auction. */
@@ -317,7 +317,7 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
     // the ceiling on a raise applies from the very first offer rather than only once someone leads.
     const standing = auction.highestBidder == null ? auction.startingBid : auction.highestBid
 
-    if (auction.highestBidder != null && amount - standing < Math.max(tournament.minBidIncrement, 1)) {
+    if (auction.highestBidder != null && amount - standing < minBidIncrement(tournament)) {
       return 'BELOW_MIN_STEP'
     }
 

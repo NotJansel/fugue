@@ -138,7 +138,9 @@ field breaks existing deployments.
   row range and replaces **only that round**.
 - The auction's rules are configuration, not constants: `fieldSize` (only the top N take part),
   `teamSize`/`minTeamSize` (largest and smallest legal team, captain included),
-  `minBidIncrement`/`maxBidIncrement` and `secondRun`. The neutral defaults - no field cut, no
+  `minBidIncrement`/`maxBidIncrement` and `secondRun`. The second run halves the starting price and
+  caps the minimum raise at 50 (`minBidIncrement()` in `tournament-model.ts`, sent to the client as
+  `config.bidIncrement`) without touching the stored setting. The neutral defaults - no field cut, no
   reserve, no ceiling on a raise - leave a tournament that predates them behaving as it did.
   `field()` in `tournament-model.ts` is what every derivation starts from, so a qualifier below the
   cut keeps their seed and results but is out of the captain count, the pool and the auction. The one

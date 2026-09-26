@@ -122,6 +122,19 @@ const scored = computed(() =>
   visible.value.filter(map => lobbyScored.value.has(map.id) || players.value.some(player => player.mapScores[map.id]))
 )
 
+/** Each scored slot's bracket colour, by column. */
+const scoredStyles = computed(() => scored.value.map(bracketStyle))
+
+/**
+ * Every heading cell of the results table. The table scrolls in a box of its own - it has to, for
+ * the slot names to stay on top: it scrolls sideways too, and a sideways scroller is what a sticky
+ * heading sticks to whether it scrolls down or not. Stuck, a heading needs a background of its own,
+ * mixed to match the card it sits on, and its line drawn as a shadow, since a collapsed border
+ * stays with the table rather than with the heading.
+ */
+const HEAD = 'sticky top-0 z-10 bg-[color-mix(in_oklab,var(--ui-bg-elevated)_50%,var(--color-umber-950))]'
+const HEAD_LINE = 'shadow-[inset_0_-1px_0_var(--ui-border)]'
+
 /** A sheet cell is shown as written; a read or typed-in score is a number and gets the viewer's grouping. */
 const cellText = (cell: MapScore): string => cell.source === 'sheet' ? cell.display : number(cell.value)
 
@@ -360,27 +373,40 @@ async function saveCell(score: number | null) {
         </div>
       </template>
 
-      <div class="overflow-x-auto">
+      <div class="max-h-[75vh] overflow-auto">
         <table class="w-full text-sm">
           <thead>
-            <tr class="border-b border-default/60 text-left text-xs uppercase tracking-wider text-muted">
-              <th class="py-2 pe-3 font-medium">
+            <tr class="text-left text-xs uppercase tracking-wider text-muted">
+              <th
+                class="py-2 pe-3 font-medium"
+                :class="[HEAD, HEAD_LINE]"
+              >
                 {{ t('common.seed') }}
               </th>
-              <th class="py-2 pe-3 font-medium">
+              <th
+                class="py-2 pe-3 font-medium"
+                :class="[HEAD, HEAD_LINE]"
+              >
                 {{ t('sheet.field.username') }}
               </th>
               <th
-                v-for="map in scored"
+                v-for="(map, index) in scored"
                 :key="map.id"
                 class="py-2 px-3 font-medium text-right"
+                :class="[HEAD, scoredStyles[index]?.underline ?? HEAD_LINE]"
               >
                 {{ map.label }}
               </th>
-              <th class="py-2 ps-3 font-medium text-right">
+              <th
+                class="py-2 ps-3 font-medium text-right"
+                :class="[HEAD, HEAD_LINE]"
+              >
                 {{ t('mappool.average') }}
               </th>
-              <th class="py-2 ps-3 font-medium text-right">
+              <th
+                class="py-2 ps-3 font-medium text-right"
+                :class="[HEAD, HEAD_LINE]"
+              >
                 {{ t('mappool.zSum') }}
               </th>
             </tr>
@@ -401,7 +427,7 @@ async function saveCell(score: number | null) {
                 v-for="(cell, index) in row.cells"
                 :key="index"
                 class="py-1.5 px-3 text-right tnum"
-                :class="isAdmin ? 'cursor-pointer hover:bg-elevated/40' : ''"
+                :class="[scoredStyles[index]?.tint, isAdmin ? 'cursor-pointer hover:bg-elevated/40' : '']"
                 :title="isAdmin ? t('mappool.enterScore') : undefined"
                 @click="openCell(row.player, scored[index])"
               >

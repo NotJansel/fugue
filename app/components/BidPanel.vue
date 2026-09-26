@@ -50,9 +50,15 @@ const maximum = computed(() => {
   return Math.min(byStep, props.auction.maxBid, Math.max(available.value - reserved.value, 0))
 })
 
-watchEffect(() => {
-  if (amount.value < minimum.value) amount.value = Math.min(minimum.value, props.auction.maxBid)
-})
+/**
+ * The box starts at the lowest legal bid once per auction, and is then left alone: a bid from
+ * someone else does not drag the number up to the new minimum under the captain's fingers. A number
+ * overtaken like that simply stops being legal, and the button says so. Snapping a typed number to
+ * the step and into the range is the input's own doing and stays as it was.
+ */
+watch(() => props.auction.messageId, () => {
+  amount.value = Math.min(minimum.value, props.auction.maxBid)
+}, { immediate: true })
 
 /** Quick raises - finer on the second run, where the players cost half and the minimum raise is 50. */
 const steps = computed(() => state.value?.config.secondRun ? [50, 100, 500] : [100, 500, 1000])

@@ -53,12 +53,34 @@ const maximum = computed(() => {
 /**
  * The box starts at the lowest legal bid once per auction, and is then left alone: a bid from
  * someone else does not drag the number up to the new minimum under the captain's fingers. A number
- * overtaken like that simply stops being legal, and the button says so. Snapping a typed number to
- * the step and into the range is the input's own doing and stays as it was.
+ * overtaken like that simply stops being legal, and the button says so.
  */
 watch(() => props.auction.messageId, () => {
   amount.value = Math.min(minimum.value, props.auction.maxBid)
 }, { immediate: true })
+
+const bidStep = computed(() => state.value?.config.bidIncrement ?? 1)
+
+/**
+ * What the box writes back: a typed number rounded to the nearest legal step - the minimum plus a
+ * whole number of steps, the grid the input snapped to before - but never pushed up to the minimum.
+ * A bid below it stays below it and the range under the box says why; jumping to the minimum would
+ * put a number in the box the captain never typed. The input's own snapping is off for the same
+ * reason, since it clamps to its `min` as it rounds.
+ */
+const typed = computed({
+  get: () => amount.value,
+  set: (value: number | null | undefined) => {
+    if (value == null || Number.isNaN(value)) return
+
+    const base = minimum.value
+    let snapped = base + Math.round((value - base) / bidStep.value) * bidStep.value
+    // Rounding up must not carry a number over the ceiling it was typed under.
+    if (snapped > maximum.value) snapped -= bidStep.value
+
+    amount.value = Math.max(snapped, 0)
+  }
+})
 
 /** Quick raises - finer on the second run, where the players cost half and the minimum raise is 50. */
 const steps = computed(() => state.value?.config.secondRun ? [50, 100, 500] : [100, 500, 1000])
@@ -178,10 +200,11 @@ async function bid() {
         :help="t('auction.bid.range', { min: money(minimum), max: money(maximum) })"
       >
         <UInputNumber
-          v-model="amount"
-          :min="minimum"
+          v-model="typed"
+          :min="0"
           :max="maximum"
-          :step="state?.config.bidIncrement ?? 1"
+          :step="bidStep"
+          :step-snapping="false"
           size="xl"
           class="w-full"
           :ui="{ base: 'tnum font-display text-xl' }"

@@ -36,6 +36,8 @@ export type BidResult
     | 'CAPTAIN_UNLINKED'
     /** The bidder's roster is already at the largest legal team. */
     | 'TEAM_FULL'
+    /** The clock has run out and the hammer is about to fall - too late to reopen it. */
+    | 'CLOSED'
     /** A raise has to clear the standing bid by the tournament's minimum step. */
     | 'BELOW_MIN_STEP'
     /** And may not clear it by more than the maximum step. */
@@ -158,14 +160,28 @@ async function announce(auction: AuctionState, result: string, roster: string | 
   }
 }
 
-/** Sets the auction to end `durationMs` from now. Must only be called from inside `withLock`. */
+/**
+ * Sets the auction to end `durationMs` from now. Must only be called from inside `withLock`.
+ *
+ * A timer that fires while a bid holds the lock has already queued its `end` by the time that bid
+ * pushes the clock back, and clearing it then cancels nothing. So the queued `end` checks it is still
+ * the auction's current timer, and a timer that has been replaced in the meantime ends nothing.
+ */
 function scheduleTimer(auction: AuctionState, durationMs: number): void {
   if (auction.timer) clearTimeout(auction.timer)
 
   auction.endsAt = Date.now() + durationMs
-  auction.timer = setTimeout(() => {
-    void withLock(() => end(auction)).then(() => emitChange())
+
+  const timer: NodeJS.Timeout = setTimeout(() => {
+    void withLock(async () => {
+      if (auction.timer !== timer) return
+
+      await end(auction)
+      emitChange()
+    })
   }, durationMs)
+
+  auction.timer = timer
 }
 
 /** Must only be called from inside `withLock`. */
@@ -295,6 +311,10 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
     const auction = current
     if (!auction) return 'NO_AUCTION'
 
+    // The timer may already have fired and queued the end behind this bid. Taking the bid would push
+    // the clock back up and reopen an auction everyone has just watched run out.
+    if (Date.now() >= auction.endsAt) return 'CLOSED'
+
     const tournament = getTournament()
     const captain = captainForBidder(tournament, bidderId)
     if (!captain) return 'NOT_CAPTAIN'
@@ -340,11 +360,16 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
     auction.highestBid = amount
     auction.highestBidder = purseId
 
+    // The clock goes back up the moment the bid is taken, not once Discord has been told about it:
+    // editing the card takes a round trip, and seconds when the channel is rate limited, which is
+    // exactly the window a last-second bid falls in.
+    const final = auction.highestBid >= auction.maxBid
+    if (!final && auction.endsAt - Date.now() < BID_EXTENSION_MS) scheduleTimer(auction, BID_EXTENSION_MS)
+
     const via = bidderId === purseId ? '' : ` (via <@${bidderId}>)`
     await updateMessage(auction, `Current highest bid: ${amount} by <@${purseId}>${via}`)
 
-    if (auction.highestBid >= auction.maxBid) await end(auction)
-    else if (auction.endsAt - Date.now() < BID_EXTENSION_MS) scheduleTimer(auction, BID_EXTENSION_MS)
+    if (final) await end(auction)
 
     emitChange()
 

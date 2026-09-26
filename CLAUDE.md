@@ -150,6 +150,10 @@ field breaks existing deployments.
 - The auction **clock** opens at 20 seconds (`AUCTION_DURATION_MS`) and a bid does *not* restart
   it: only a bid with less than 10 seconds left (`BID_EXTENSION_MS`) puts it back up to 10. The
   client's countdown ring measures against the same 20 seconds, hand-copied in `useCountdown.ts`.
+  The clock is moved *before* the Discord card is edited, and a timer that fired while a bid held
+  the lock checks it is still the current one before ending anything - otherwise a last-second bid
+  is accepted, extends the clock, and the already-queued end closes the auction anyway. A bid that
+  arrives once the clock is out is refused (`CLOSED`) rather than reopening it.
 - Every rule a bid has to pass lives in `submitBid`, not in the route: team not yet full, inside the
   min/max step (measured from the starting price for an opening bid, from the standing bid after
   that), affordable, and still leaving `reserveFor()` - what the captain needs to fill their roster

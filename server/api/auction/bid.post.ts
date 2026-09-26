@@ -7,6 +7,7 @@ import { requireSession } from '../../utils/session'
 /** Why a bid did not take, in the caller's terms. */
 const rejections: Record<string, { status: number, reason: string, code: string }> = {
   NO_AUCTION: { status: 409, reason: 'No auction is currently running.', code: 'err.auction.none' },
+  CLOSED: { status: 409, reason: 'Too late - the clock has run out.', code: 'err.bid.closed' },
   NOT_CAPTAIN: { status: 403, reason: 'Only captains can bid.', code: 'err.bid.notCaptain' },
   CAPTAIN_UNLINKED: {
     status: 409,

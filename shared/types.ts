@@ -395,21 +395,21 @@ export interface AuctionSnapshot {
   messageId: string
 }
 
-/** The last auction that ended in a sale - what the dashboard's banner announces. */
-export interface AuctionSale {
-  /** The auction card's message ID, so a client can tell one sale from the next. */
+/** How the last auction ended - what the dashboard's banner announces. */
+export interface AuctionResult {
+  /** The auction card's message ID, so a client can tell one result from the next. */
   id: string
   osuId: string
   username: string
-  captainOsuId: string
-  price: number
+  /** Who bought the player and for how much, or `null` when nobody bid. */
+  sale: { captainOsuId: string, price: number } | null
   /** Epoch millis at which the hammer fell. */
   at: number
 }
 
-/** A sale as the dashboard shows it, with the buying team's name resolved. */
-export interface AuctionSaleDto extends AuctionSale {
-  teamName: string
+/** A result as the dashboard shows it, with the buying team's name resolved. */
+export interface AuctionResultDto extends Omit<AuctionResult, 'sale'> {
+  sale: { captainOsuId: string, teamName: string, price: number } | null
 }
 
 /** A player as the dashboard sees them: stored fields plus everything derived from them. */
@@ -553,8 +553,8 @@ export interface DashboardState {
   auction: AuctionSnapshot | null
   /** Display name of the leading bidder, resolved against the captain list. */
   auctionLeader: string | null
-  /** The last auction that ended in a sale, for the banner that announces it. */
-  lastSale: AuctionSaleDto | null
+  /** How the last auction ended, for the banner that announces it. Cancelled ones don't count. */
+  lastResult: AuctionResultDto | null
   warnings: TournamentWarning[]
   sheet: SheetImportConfig | null
   registrationSheet: RegistrationSheetConfig | null

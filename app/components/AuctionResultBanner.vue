@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { AuctionSaleDto } from '#shared/types'
+import type { AuctionResultDto } from '#shared/types'
 
 /**
- * Announces who just bought whom, across the top of every page, for ten seconds after the hammer
- * falls.
+ * Announces how an auction ended - who bought whom, or that nobody bid - across the top of every
+ * page, for ten seconds after the hammer falls.
  *
- * Only a sale that arrives while the page is open is announced: whatever is on file when it loads
+ * Only a result that arrives while the page is open is announced: whatever is on file when it loads
  * has already been announced to whoever was watching, and a reload should not play it again.
  */
 const DISMISS_AFTER_MS = 10_000
@@ -14,8 +14,17 @@ const { state } = useDashboard()
 const { t } = useLang()
 const { money } = useFormat()
 
-const shown = ref<AuctionSaleDto | null>(null)
+const shown = ref<AuctionResultDto | null>(null)
 let timer: ReturnType<typeof setTimeout> | undefined
+
+const message = computed(() => {
+  const result = shown.value
+  if (!result) return ''
+
+  return result.sale
+    ? t('auction.sold', { player: result.username, team: result.sale.teamName, price: money(result.sale.price) })
+    : t('auction.unsold', { player: result.username })
+})
 
 const dismiss = () => {
   clearTimeout(timer)
@@ -24,12 +33,12 @@ const dismiss = () => {
 
 onMounted(() => {
   watch(
-    () => state.value?.lastSale ?? null,
-    (sale, previous) => {
-      if (!sale || sale.id === previous?.id) return
+    () => state.value?.lastResult ?? null,
+    (result, previous) => {
+      if (!result || result.id === previous?.id) return
 
       clearTimeout(timer)
-      shown.value = sale
+      shown.value = result
       timer = setTimeout(dismiss, DISMISS_AFTER_MS)
     }
   )
@@ -50,7 +59,8 @@ onBeforeUnmount(() => clearTimeout(timer))
         v-if="shown"
         :key="shown.id"
         role="status"
-        class="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-xl border border-secondary/40 bg-elevated/95 shadow-lg backdrop-blur"
+        class="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-xl border bg-elevated/95 shadow-lg backdrop-blur"
+        :class="shown.sale ? 'border-secondary/40' : 'border-default/60'"
       >
         <div class="flex items-center gap-3 px-4 py-3">
           <PlayerAvatar
@@ -61,10 +71,11 @@ onBeforeUnmount(() => clearTimeout(timer))
 
           <p class="min-w-0 flex-1 text-sm">
             <UIcon
-              name="i-lucide-gavel"
-              class="me-1 size-4 align-[-3px] text-secondary"
+              :name="shown.sale ? 'i-lucide-gavel' : 'i-lucide-circle-slash'"
+              class="me-1 size-4 align-[-3px]"
+              :class="shown.sale ? 'text-secondary' : 'text-muted'"
             />
-            {{ t('auction.sold', { player: shown.username, team: shown.teamName, price: money(shown.price) }) }}
+            {{ message }}
           </p>
 
           <UButton
@@ -78,7 +89,8 @@ onBeforeUnmount(() => clearTimeout(timer))
         </div>
 
         <div
-          class="sale-countdown h-0.5 bg-secondary"
+          class="sale-countdown h-0.5"
+          :class="shown.sale ? 'bg-secondary' : 'bg-(--ui-text-muted)'"
           :style="{ animationDuration: `${DISMISS_AFTER_MS}ms` }"
         />
       </div>

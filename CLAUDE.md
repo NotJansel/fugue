@@ -164,9 +164,10 @@ field breaks existing deployments.
   auction goes through `withLock` — settling a purse and recording a sale both `await`, and a bid
   arriving in that window would otherwise see a half-ended auction.
 - `POST /api/auction/start` without an `osuId` draws a player at random from `unsoldPool`. When an
-  auction ends in a sale, `auction.ts` keeps it as `lastSale` (in memory only, like the auction) and
-  the dashboard state carries it; `SaleBanner.vue` announces a sale for 10 seconds, but only one
-  that arrives while the page is open, so a reload does not replay it.
+  auction ends - sold, or with no bid - `auction.ts` keeps it as `lastResult` (in memory only, like
+  the auction) and the dashboard state carries it; `AuctionResultBanner.vue` announces it for 10
+  seconds, but only a result that arrives while the page is open, so a reload does not replay it. A
+  cancelled auction announces nothing.
 - **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
   endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
   that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be

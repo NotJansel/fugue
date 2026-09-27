@@ -1,5 +1,5 @@
 import { Routes } from 'discord.js'
-import type { AuctionSale, AuctionSnapshot } from '#shared/types'
+import type { AuctionResult, AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
 import { getBalance, release, reserve, settleHold } from './purse-store'
@@ -71,12 +71,21 @@ interface AuctionState {
 let current: AuctionState | null = null
 
 /**
- * The most recent auction that ended in a sale, for the dashboard's "sold" banner. Like the auction
- * itself it is not persisted: it only means anything for the few seconds after the hammer falls.
+ * How the most recent auction ended - sold, or closed without a bid - for the dashboard's banner. Like
+ * the auction itself it is not persisted: it only means anything for the few seconds after the hammer
+ * falls.
  */
-let lastSale: AuctionSale | null = null
+let lastResult: AuctionResult | null = null
 
-export const lastAuctionSale = (): AuctionSale | null => lastSale
+export const lastAuctionResult = (): AuctionResult | null => lastResult
+
+const resultOf = (auction: AuctionState, sale: AuctionResult['sale']): AuctionResult => ({
+  id: auction.messageId,
+  osuId: auction.subject.osuId,
+  username: auction.subject.username,
+  sale,
+  at: Date.now()
+})
 
 /**
  * Serialises everything that touches the auction.
@@ -214,20 +223,13 @@ async function end(auction: AuctionState): Promise<void> {
 
       const captain = captainForDiscordId(getTournament(), winnerId)
 
-      if (captain) {
-        lastSale = {
-          id: auction.messageId,
-          osuId: auction.subject.osuId,
-          username: auction.subject.username,
-          captainOsuId: captain.osuId,
-          price: auction.highestBid,
-          at: Date.now()
-        }
-      }
+      if (captain) lastResult = resultOf(auction, { captainOsuId: captain.osuId, price: auction.highestBid })
     } else {
       notes += ' Could not debit the winner\'s purse (insufficient funds or error).'
     }
   }
+
+  if (auction.highestBid === 0) lastResult = resultOf(auction, null)
 
   const result = auction.highestBid > 0
     ? `Auction ended! Winner: ${winnerId ? `<@${winnerId}>` : 'No one'} with bid ${auction.highestBid}.${notes}`

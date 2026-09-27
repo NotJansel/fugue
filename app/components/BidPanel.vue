@@ -103,6 +103,17 @@ async function bid() {
     pending.value = false
   }
 }
+
+/**
+ * Enter in the box bids, the way the button would. The field only takes a typed number on Enter or
+ * blur, through an Enter handler of its own that this one is not ordered against - so the bid waits
+ * a tick for the number to land either way, and then goes by the same rule the button does.
+ */
+async function bidFromKeyboard() {
+  await nextTick()
+
+  if (legal.value && !pending.value) await bid()
+}
 </script>
 
 <template>
@@ -208,6 +219,7 @@ async function bid() {
           size="xl"
           class="w-full"
           :ui="{ base: 'tnum font-display text-xl' }"
+          @keydown.enter="bidFromKeyboard"
         />
       </UFormField>
 

@@ -395,6 +395,8 @@ export interface AuctionSnapshot {
   maxBid: number
   highestBid: number
   highestBidderId: string | null
+  /** Epoch millis from which bids are taken - a few seconds after the auction opens. */
+  opensAt: number
   /** Epoch millis at which the current countdown lapses, so clients can render it themselves. */
   endsAt: number
   channelId: string
@@ -418,8 +420,6 @@ export interface AuctionResultDto extends Omit<AuctionResult, 'sale'> {
   sale: { captainOsuId: string, teamName: string, price: number } | null
 }
 
-/** A player as the dashboard sees them: stored fields plus everything derived from them. */
-export interface PlayerDto {
 /** A message an organiser sent to every open dashboard. */
 export interface Broadcast {
   /** Tells one message from the next, so a client announces each exactly once. */
@@ -432,6 +432,8 @@ export interface Broadcast {
   at: number
 }
 
+/** A player as the dashboard sees them: stored fields plus everything derived from them. */
+export interface PlayerDto {
   osuId: string
   username: string
   /** 1-based position in the seeding. */
@@ -575,10 +577,10 @@ export interface DashboardState {
   auctionLeader: string | null
   /** How the last auction ended, for the banner that announces it. Cancelled ones don't count. */
   lastResult: AuctionResultDto | null
-  warnings: TournamentWarning[]
-  sheet: SheetImportConfig | null
   /** The last message an organiser sent to everyone, for the banner that shows it. */
   broadcast: Broadcast | null
+  warnings: TournamentWarning[]
+  sheet: SheetImportConfig | null
   registrationSheet: RegistrationSheetConfig | null
   importProgress: ImportProgress | null
   importOutcome: ImportOutcome | null

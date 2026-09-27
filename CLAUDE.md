@@ -147,6 +147,9 @@ field breaks existing deployments.
   exception is a **`FORCE` captain**, picked off the whole list rather than off the field: someone
   with no qualifier result has no Z-sum and is reseeded to the bottom, and a cut would otherwise take
   their captaincy away again. `AUTO` captains still come out of the field.
+- An auction shows the player for 3 seconds (`OPENING_DELAY_MS`, `AuctionSnapshot.opensAt`) before
+  any bid is taken - `submitBid` refuses one with `NOT_OPEN` - and the 20 seconds only start once it
+  is over; the client counts the 3 seconds down on a quieter ring, hand-copied in `useCountdown.ts`.
 - The auction **clock** opens at 20 seconds (`AUCTION_DURATION_MS`) and a bid does *not* restart
   it: only a bid with less than 10 seconds left (`BID_EXTENSION_MS`) puts it back up to 10. The
   client's countdown ring measures against the same 20 seconds, hand-copied in `useCountdown.ts`.
@@ -174,15 +177,15 @@ field breaks existing deployments.
   the auction) and the dashboard state carries it; `AuctionResultBanner.vue` announces it for 10
   seconds, but only a result that arrives while the page is open, so a reload does not replay it. A
   cancelled auction announces nothing.
-- **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
-  endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
-  that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be
 - An organiser can **message every open dashboard** (`POST /api/broadcast`, the megaphone in the
   header). The last message is kept in memory (`server/utils/broadcast.ts`) and rides on the state
   push as `DashboardState.broadcast`; `BroadcastBanner.vue` shows it until the viewer closes it. Both
   top banners go through `onArrival` (`useArrivals.ts`): only something new that arrives while the
   page is open, and not more than a minute stale, is announced. The message is free text, shown as
   text and not translated; its 500-character limit is hand-copied in `BroadcastSender.vue`.
+- **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
+  endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
+  that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be
   placed as someone else. A team may have one stand-in, a Discord ID an organiser sets on the team
   card (`POST /api/teams/proxy`, `TournamentState.proxies`, table `team_proxies`, keyed by captain
   osu! ID and pruned/rekeyed with the rosters). `captainForBidder` resolves either to the captain,

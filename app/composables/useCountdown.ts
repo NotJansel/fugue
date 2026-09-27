@@ -1,10 +1,16 @@
+/** The 20 seconds an auction runs once bidding opens - `AUCTION_DURATION_MS` on the server. */
+export const AUCTION_DURATION_MS = 20_000
+
+/** The seconds an auction shows the player before bids are taken - `OPENING_DELAY_MS` on the server. */
+export const OPENING_DELAY_MS = 3_000
+
 /**
  * Seconds left until `endsAt`, ticking on the client.
  *
  * The server sends the instant a countdown lapses rather than a duration, so every open tab agrees on
  * when the hammer falls no matter when it connected or how far its clock has drifted since.
  */
-export function useCountdown(endsAt: Ref<number | null | undefined>) {
+export function useCountdown(endsAt: Ref<number | null | undefined>, totalMs = AUCTION_DURATION_MS) {
   const now = ref(Date.now())
   let timer: ReturnType<typeof setInterval> | null = null
 
@@ -22,10 +28,10 @@ export function useCountdown(endsAt: Ref<number | null | undefined>) {
   const seconds = computed(() => Math.ceil(remainingMs.value / 1000))
   /**
    * 1 at the start of the countdown, 0 when it lapses - what the progress ring reads. Measured against
-   * the 20 seconds an auction opens with (`AUCTION_DURATION_MS` on the server), so a late bid that
-   * puts the clock back up to 10 shows as the ring refilling halfway.
+   * `totalMs`, by default the 20 seconds an auction runs for, so a late bid that puts the clock back up
+   * to 10 shows as the ring refilling halfway.
    */
-  const fraction = computed(() => Math.min(remainingMs.value / 20_000, 1))
+  const fraction = computed(() => Math.min(remainingMs.value / totalMs, 1))
 
   return { seconds, remainingMs, fraction }
 }

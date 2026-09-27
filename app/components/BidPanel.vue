@@ -17,6 +17,10 @@ const { money } = useFormat()
 const amount = ref<number>(0)
 const pending = ref(false)
 
+/** Bids are not taken for the first few seconds - the box can be filled in, the button waits. */
+const opening = useCountdown(computed(() => props.auction.opensAt), OPENING_DELAY_MS)
+const waiting = computed(() => opening.remainingMs.value > 0)
+
 const available = computed(() => (myTeam.value?.balance ?? 0) - (myTeam.value?.held ?? 0))
 // The lead is held under the captain's Discord ID whoever placed the bid, so a captain and their
 // stand-in lead together.
@@ -91,7 +95,7 @@ const bump = (by: number) => {
 
 /** Whether the number in the box is one the server would take. */
 const legal = computed(() =>
-  !leading.value && !teamFull.value && amount.value >= minimum.value && amount.value <= maximum.value
+  !waiting.value && !leading.value && !teamFull.value && amount.value >= minimum.value && amount.value <= maximum.value
 )
 
 async function bid() {
@@ -252,7 +256,7 @@ async function bidFromKeyboard() {
         :disabled="!legal"
         @click="bid"
       >
-        {{ t('auction.bid.place') }}
+        {{ waiting ? t('auction.bid.opensIn', { seconds: opening.seconds.value }) : t('auction.bid.place') }}
       </UButton>
     </div>
   </UCard>

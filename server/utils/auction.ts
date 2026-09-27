@@ -38,6 +38,8 @@ export type BidResult
     | 'TEAM_FULL'
     /** The clock has run out and the hammer is about to fall - too late to reopen it. */
     | 'CLOSED'
+    /** The auction has just opened and bidding is not free yet (`OPENING_DELAY_MS`). */
+    | 'NOT_OPEN'
     /** A raise has to clear the standing bid by the tournament's minimum step. */
     | 'BELOW_MIN_STEP'
     /** And may not clear it by more than the maximum step. */
@@ -45,7 +47,14 @@ export type BidResult
     /** Winning would leave too little to fill the roster to the smallest legal team. */
     | 'BREAKS_RESERVE'
 
-/** How long an auction runs from the moment it opens, if nobody bids. */
+/**
+ * How long an auction shows the player before anyone may bid - so the whole room sees who is up
+ * before the first click, rather than whoever's tab happens to refresh first getting a head start.
+ * The client counts it down against the same 3 seconds, hand-copied in `useCountdown.ts`.
+ */
+const OPENING_DELAY_MS = 3_000
+
+/** How long an auction runs from the moment bidding opens, if nobody bids. */
 const AUCTION_DURATION_MS = 20_000
 
 /**
@@ -64,6 +73,8 @@ interface AuctionState {
   highestBid: number
   /** Discord ID of the leading *captain* - the purse holding the bid - even when a stand-in placed it. */
   highestBidder: string | null
+  /** Epoch millis from which bids are taken. */
+  opensAt: number
   endsAt: number
   timer: NodeJS.Timeout | null
 }
@@ -114,6 +125,7 @@ const toSnapshot = (auction: AuctionState): AuctionSnapshot => ({
   maxBid: auction.maxBid,
   highestBid: auction.highestBid,
   highestBidderId: auction.highestBidder,
+  opensAt: auction.opensAt,
   endsAt: auction.endsAt,
   channelId: auction.channelId,
   messageId: auction.messageId
@@ -306,12 +318,14 @@ export function startAuction(
       maxBid,
       highestBid: 0,
       highestBidder: null,
+      opensAt: Date.now() + OPENING_DELAY_MS,
       endsAt: 0,
       timer: null
     }
 
     current = auction
-    scheduleTimer(auction, AUCTION_DURATION_MS)
+    // The full 20 seconds are for bidding, so the clock only starts running once bids are taken.
+    scheduleTimer(auction, OPENING_DELAY_MS + AUCTION_DURATION_MS)
     emitChange()
 
     return { kind: 'started', snapshot: toSnapshot(auction) }
@@ -348,6 +362,8 @@ export function submitBid(bidderId: string, amount: number): Promise<BidResult> 
   return withLock(async (): Promise<BidResult> => {
     const auction = current
     if (!auction) return 'NO_AUCTION'
+
+    if (Date.now() < auction.opensAt) return 'NOT_OPEN'
 
     // The timer may already have fired and queued the end behind this bid. Taking the bid would push
     // the clock back up and reopen an auction everyone has just watched run out.

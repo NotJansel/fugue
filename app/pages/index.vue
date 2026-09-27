@@ -8,6 +8,11 @@ const { money, number } = useFormat()
 const endsAt = computed(() => auction.value?.endsAt ?? null)
 const { seconds, fraction } = useCountdown(endsAt)
 
+// The few seconds between the player going up and bids being taken, counted down on their own ring.
+const opensAt = computed(() => auction.value?.opensAt ?? null)
+const opening = useCountdown(opensAt, OPENING_DELAY_MS)
+const waiting = computed(() => opening.remainingMs.value > 0)
+
 const cancelling = ref(false)
 
 async function cancel() {
@@ -110,10 +115,19 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
               </p>
             </div>
 
-            <CountdownRing
-              :seconds="seconds"
-              :fraction="fraction"
-            />
+            <div class="flex shrink-0 flex-col items-center gap-1">
+              <CountdownRing
+                :seconds="waiting ? opening.seconds.value : seconds"
+                :fraction="waiting ? opening.fraction.value : fraction"
+                :waiting="waiting"
+              />
+              <span
+                v-if="waiting"
+                class="text-[11px] uppercase tracking-wider text-muted"
+              >
+                {{ t('auction.opening') }}
+              </span>
+            </div>
           </div>
 
           <USeparator class="my-5" />

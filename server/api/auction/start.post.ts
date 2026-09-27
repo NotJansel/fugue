@@ -5,11 +5,14 @@ import { config } from '../../utils/config'
 import { apiError } from '../../utils/http-error'
 import { fetchOsuUser, osuApiReady } from '../../utils/osu-api'
 import { requireAdmin } from '../../utils/session'
-import { playerDescription, pool, soldPlayerIds, startingBid, unsoldPool } from '../../utils/tournament-model'
+import { auctionablePool, playerDescription, pool, soldPlayerIds, startingBid, unsoldPool } from '../../utils/tournament-model'
 import { getTournament, replacePlayers } from '../../utils/tournament-store'
 
 interface Body {
-  /** Left out, the auction is for a player drawn at random from whoever in the pool is still unsold. */
+  /**
+   * Left out, the auction is for a player drawn at random from whoever in the pool is still unsold and
+   * has not already been passed over in this run.
+   */
   osuId?: string | null
   startingBid?: number | null
   maxBid?: number | null
@@ -59,10 +62,15 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
   let osuId = body.osuId
 
   if (osuId == null) {
-    const unsold = unsoldPool(tournament)
-    if (unsold.length === 0) throw apiError(409, 'Every player in the pool has been sold.', 'err.auction.poolEmpty')
+    const candidates = auctionablePool(tournament)
 
-    osuId = unsold[Math.floor(Math.random() * unsold.length)]!.osuId
+    if (candidates.length === 0) {
+      throw unsoldPool(tournament).length === 0
+        ? apiError(409, 'Every player in the pool has been sold.', 'err.auction.poolEmpty')
+        : apiError(409, 'Everyone left in the pool has been offered in this run.', 'err.auction.runDone')
+    }
+
+    osuId = candidates[Math.floor(Math.random() * candidates.length)]!.osuId
   }
 
   const index = tournament.players.findIndex(player => player.osuId === osuId)

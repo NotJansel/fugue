@@ -208,6 +208,13 @@ const schema = `
     position  integer NOT NULL
   );
 
+  -- Players nobody bid on, per run ('first' or 'second'): not to be offered again in that run.
+  CREATE TABLE IF NOT EXISTS passed_players (
+    osu_id  text NOT NULL,
+    run     text NOT NULL,
+    PRIMARY KEY (osu_id, run)
+  );
+
   CREATE TABLE IF NOT EXISTS sheet_config (
     -- 'qualifier', 'registration' or 'mappool' - different documents as a rule.
     -- A 'schedule' row is left over from a feature since removed and is dropped below.

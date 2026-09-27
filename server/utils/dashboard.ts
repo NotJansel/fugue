@@ -13,6 +13,7 @@ import {
   captains,
   field,
   minBidIncrement,
+  passedThisRun,
   playerDescription,
   qualifierResults,
   reserveFor,
@@ -97,6 +98,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
   const takingPart = new Set(field(tournament).map(player => player.osuId))
   const seeds = new Map(tournament.players.map((player, index) => [player.osuId, index + 1]))
   const results = qualifierResults(tournament, allLobbyScores(), allManualScores())
+  const passed = passedThisRun(tournament)
 
   const purchases = new Map<string, { captainOsuId: string, price: number }>()
   for (const [captainOsuId, members] of Object.entries(tournament.rosters)) {
@@ -127,6 +129,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       inField: takingPart.has(player.osuId),
       isCaptain: captainIds.has(player.osuId),
       soldTo: purchase?.captainOsuId ?? null,
+      passedOver: passed.has(player.osuId),
       price: purchase?.price ?? null,
       balance: player.discordId ? balances[player.discordId] ?? 0 : null,
       held: player.discordId ? holds[player.discordId] ?? 0 : null,
@@ -231,6 +234,8 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     removedPlayers: guest
       ? []
       : (tournament.removedPlayers ?? []).map(player => ({ osuId: player.osuId, username: player.username })),
-    poolRemaining: players.filter(player => player.inField && !player.isCaptain && player.soldTo == null).length
+    poolRemaining: players
+      .filter(player => player.inField && !player.isCaptain && player.soldTo == null && !player.passedOver)
+      .length
   }
 }

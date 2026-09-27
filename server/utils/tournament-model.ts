@@ -33,6 +33,7 @@ export const emptyTournament = (): TournamentState => ({
   proxies: {},
   mappool: [],
   removedPlayers: [],
+  passedOver: { first: [], second: [] },
   sheet: null,
   mappoolSheet: null,
   registrationSheet: null
@@ -131,6 +132,21 @@ export function unsoldPool(state: TournamentState): TournamentPlayer[] {
   const sold = soldPlayerIds(state)
 
   return pool(state).filter(player => !sold.has(player.osuId))
+}
+
+/** The run under way - which of the two `passedOver` lists an auction ending unsold goes on. */
+export const currentRun = (state: TournamentState): keyof TournamentState['passedOver'] =>
+  state.secondRun ? 'second' : 'first'
+
+/** osu! IDs nobody bid on in the run under way - not to be offered again until the next one. */
+export const passedThisRun = (state: TournamentState): Set<string> =>
+  new Set(state.passedOver[currentRun(state)])
+
+/** Pool players who can be put up right now: not sold, and not already passed over in this run. */
+export function auctionablePool(state: TournamentState): TournamentPlayer[] {
+  const passed = passedThisRun(state)
+
+  return unsoldPool(state).filter(player => !passed.has(player.osuId))
 }
 
 /**

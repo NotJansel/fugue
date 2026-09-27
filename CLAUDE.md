@@ -163,7 +163,13 @@ field breaks existing deployments.
   dashboard call into it, and it posts and edits the auction card itself. Everything that touches the
   auction goes through `withLock` — settling a purse and recording a sale both `await`, and a bid
   arriving in that window would otherwise see a half-ended auction.
-- `POST /api/auction/start` without an `osuId` draws a player at random from `unsoldPool`. When an
+- A player **nobody bid on** goes on the run's list in `TournamentState.passedOver` (`first` or
+  `second` by `secondRun`, table `passed_players`) and can't be offered again while that run lasts -
+  `startAuction` refuses them, so the slash command can't either. The second run has its own list,
+  which is how the first run's leftovers come back round. A cancelled auction passes nobody over,
+  clearing the rosters clears both lists, and `POST /api/auction/unpass` takes one player off the
+  current run's list - for an auction that ran out by mistake.
+- `POST /api/auction/start` without an `osuId` draws a player at random from `auctionablePool`. When an
   auction ends - sold, or with no bid - `auction.ts` keeps it as `lastResult` (in memory only, like
   the auction) and the dashboard state carries it; `AuctionResultBanner.vue` announces it for 10
   seconds, but only a result that arrives while the page is open, so a reload does not replay it. A

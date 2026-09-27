@@ -321,6 +321,12 @@ export interface TournamentState {
    * next sheet import would simply bring them back.
    */
   removedPlayers: TournamentPlayer[]
+  /**
+   * osu! IDs put up for auction in each run whom nobody bid on. None of them can be offered again
+   * while that run lasts; the second run keeps a list of its own, which is how the first run's
+   * leftovers come back round.
+   */
+  passedOver: { first: string[], second: string[] }
   sheet?: SheetImportConfig | null
   /** Where the mappool was last imported from - a different document to `sheet` as a rule. */
   mappoolSheet?: MappoolSheetConfig | null
@@ -445,6 +451,8 @@ export interface PlayerDto {
   isCaptain: boolean
   /** osu! ID of the captain who bought this player, if any. */
   soldTo: string | null
+  /** Nobody bid on them in the run under way, so they can't be offered again until the next one. */
+  passedOver: boolean
   price: number | null
   /** Purse balance of the linked Discord account, for captains. `null` for a guest viewer. */
   balance: number | null

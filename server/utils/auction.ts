@@ -3,8 +3,8 @@ import type { AuctionResult, AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
 import { getBalance, release, reserve, settleHold } from './purse-store'
-import { captainForBidder, captainForDiscordId, minBidIncrement, reserveFor } from './tournament-model'
-import { getTournament, recordSale } from './tournament-store'
+import { captainForBidder, captainForDiscordId, minBidIncrement, passedThisRun, reserveFor } from './tournament-model'
+import { getTournament, recordPass, recordSale } from './tournament-store'
 
 /** The player being auctioned, as supplied by whoever started the auction. */
 export interface AuctionSubject {
@@ -215,6 +215,8 @@ async function end(auction: AuctionState): Promise<void> {
 
   if (winnerId == null) {
     lastResult = resultOf(auction, null)
+    // Offered and left: not again this run. The second run starts with a list of its own.
+    await recordPass(auction.subject.osuId)
   } else {
     // Resolved before any money moves: someone who stopped being a captain while the clock ran - a
     // field cut, a captain mode changed - has no roster to put the player on, so nothing is sold.
@@ -267,6 +269,15 @@ export function startAuction(
 
     if (current != null) {
       return { kind: 'rejected', reason: 'An auction is already in progress.', code: 'err.auction.running' }
+    }
+
+    // Checked here rather than in the route, so the slash command can't offer them again either.
+    if (passedThisRun(getTournament()).has(subject.osuId)) {
+      return {
+        kind: 'rejected',
+        reason: 'Nobody bid on that player in this run - they can be offered again in the next one.',
+        code: 'err.auction.passed'
+      }
     }
 
     let messageId: string

@@ -19,7 +19,7 @@ import { emitChange } from './bus'
 import { query, valuesList, withTransaction } from './db'
 import { formatMods, parseMods } from './mods'
 import { serialiser } from './store-queue'
-import { captains, emptyTournament, seedingByZSum } from './tournament-model'
+import { captains, currentRun, emptyTournament, seedingByZSum } from './tournament-model'
 
 /**
  * Single source of truth for the tournament: qualified players, seeding order, captains and team
@@ -106,7 +106,7 @@ interface SheetRow {
 /** Reads the whole tournament back into memory. Nothing else in the process queries these tables. */
 export async function loadTournament(): Promise<void> {
   const [
-    settings, players, rosterRows, teamNameRows, proxyRows, mappoolRows, sheetRows, removedRows
+    settings, players, rosterRows, teamNameRows, proxyRows, mappoolRows, sheetRows, removedRows, passedRows
   ] = await Promise.all([
     query<SettingsRow>('SELECT * FROM tournament_settings WHERE id'),
     query<PlayerRow>('SELECT * FROM players ORDER BY seed'),
@@ -117,7 +117,8 @@ export async function loadTournament(): Promise<void> {
     ),
     query<MappoolRow>('SELECT * FROM mappool ORDER BY position'),
     query<SheetRow>('SELECT * FROM sheet_config'),
-    query<{ player: TournamentPlayer }>('SELECT player FROM removed_players ORDER BY position')
+    query<{ player: TournamentPlayer }>('SELECT player FROM removed_players ORDER BY position'),
+    query<{ osu_id: string, run: string }>('SELECT osu_id, run FROM passed_players')
   ])
 
   const rosters: Record<string, TeamMember[]> = {}
@@ -155,6 +156,10 @@ export async function loadTournament(): Promise<void> {
     ])),
     mappool: mappoolRows.map(readMap),
     removedPlayers: removedRows.map(row => row.player),
+    passedOver: {
+      first: passedRows.filter(row => row.run === 'first').map(row => row.osu_id),
+      second: passedRows.filter(row => row.run === 'second').map(row => row.osu_id)
+    },
     sheet: qualifier ? readSheet(qualifier) : null,
     mappoolSheet: mappoolSheet ? readMappoolSheet(mappoolSheet) : null,
     registrationSheet: registrationSheet ? readSheet(registrationSheet) : null
@@ -316,6 +321,16 @@ export async function persistTournament(client: PoolClient, next: TournamentStat
   ])
   if (removed) {
     await client.query(`INSERT INTO removed_players (osu_id, player, position) VALUES ${removed.text}`, removed.values)
+  }
+
+  await client.query('DELETE FROM passed_players')
+
+  const passed = valuesList(
+    (['first', 'second'] as const).flatMap(run => next.passedOver[run].map(osuId => [osuId, run])),
+    entry => entry
+  )
+  if (passed) {
+    await client.query(`INSERT INTO passed_players (osu_id, run) VALUES ${passed.text}`, passed.values)
   }
 
   await persistSheet(client, 'qualifier', next.sheet)
@@ -875,5 +890,44 @@ export function removeFromRoster(captainOsuId: string, playerOsuId: string): Pro
   })
 }
 
-/** Wipes every roster, keeping players and seeding - used to restart an auction night. */
-export const clearRosters = (): Promise<TournamentState> => update(current => ({ ...current, rosters: {} }))
+/**
+ * Wipes every roster, keeping players and seeding - used to restart an auction night. Who was passed
+ * over goes with it, since a restarted night offers everyone again.
+ */
+export const clearRosters = (): Promise<TournamentState> =>
+  update(current => ({ ...current, rosters: {}, passedOver: { first: [], second: [] } }))
+
+/**
+ * Notes that nobody bid on `playerOsuId` in the run under way, so it can't be offered again until
+ * the next one.
+ */
+export function recordPass(playerOsuId: string): Promise<TournamentState> {
+  return update((current) => {
+    const run = currentRun(current)
+    if (current.passedOver[run].includes(playerOsuId)) return current
+
+    return { ...current, passedOver: { ...current.passedOver, [run]: [...current.passedOver[run], playerOsuId] } }
+  })
+}
+
+/**
+ * Takes `playerOsuId` off the run's passed-over list, so they can be offered again in this run - for
+ * an auction that ran out by mistake. Returns whether they were on it.
+ */
+export async function clearPass(playerOsuId: string): Promise<boolean> {
+  let cleared = false
+
+  await update((current) => {
+    const run = currentRun(current)
+    if (!current.passedOver[run].includes(playerOsuId)) return current
+
+    cleared = true
+
+    return {
+      ...current,
+      passedOver: { ...current.passedOver, [run]: current.passedOver[run].filter(osuId => osuId !== playerOsuId) }
+    }
+  })
+
+  return cleared
+}

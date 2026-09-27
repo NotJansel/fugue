@@ -1,3 +1,4 @@
+import { useRuntimeConfig } from 'nitropack/runtime'
 import type { DashboardState, PlayerDto, QualifierLobbyDto, TeamDto, UserSession } from '#shared/types'
 import { auctionSnapshot, lastAuctionSale } from './auction'
 import { config, osuOauthConfigured } from './config'
@@ -180,6 +181,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
   const guest = user == null
 
   return {
+    buildId: useRuntimeConfig().app.buildId,
     user,
     config: {
       teamSize: tournament.teamSize,

@@ -540,6 +540,8 @@ export interface ImportOutcome {
  * Discord IDs, purse balances, spare sheet columns and the raw sheet links stripped out.
  */
 export interface DashboardState {
+  /** The server's Nuxt build. A tab built from another one reloads, so a deploy reaches every screen. */
+  buildId: string
   user: UserSession | null
   config: ConfigDto
   players: PlayerDto[]

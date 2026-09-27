@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { state, isGuest } = useDashboard()
+const { state, isGuest, outdated, reloadNow } = useDashboard()
 const { t, tCode } = useLang()
 
 const links = computed(() => [
@@ -77,6 +77,16 @@ const warnings = computed(() => state.value?.warnings ?? [])
 
     <UMain class="flex-1">
       <UContainer class="py-6 sm:py-8 space-y-6">
+        <UAlert
+          v-if="outdated"
+          icon="i-lucide-refresh-cw"
+          color="secondary"
+          variant="subtle"
+          :description="t('app.outdated')"
+          :actions="[{ label: t('app.reload'), color: 'secondary', variant: 'solid', size: 'xs', onClick: reloadNow }]"
+          orientation="horizontal"
+        />
+
         <UAlert
           v-if="isGuest"
           icon="i-lucide-eye"

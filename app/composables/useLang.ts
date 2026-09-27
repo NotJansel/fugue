@@ -14,6 +14,8 @@ export type Lang = 'en' | 'de'
 
 const en = {
   'app.title': 'Trinitas Proelium',
+  'app.outdated': 'A new version of the dashboard is live. The page reloads once your unsaved changes are saved or discarded.',
+  'app.reload': 'Reload now',
   'app.language': 'Language',
 
   'nav.auction': 'Auction',
@@ -385,6 +387,8 @@ const en = {
 
 const de: Record<keyof typeof en, string> = {
   'app.title': 'Trinitas Proelium',
+  'app.outdated': 'Eine neue Version des Dashboards ist live. Die Seite lädt neu, sobald deine ungespeicherten Änderungen gespeichert oder verworfen sind.',
+  'app.reload': 'Jetzt neu laden',
   'app.language': 'Sprache',
 
   'nav.auction': 'Auktion',

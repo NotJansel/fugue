@@ -24,9 +24,43 @@ function errorPayload(error: unknown): ApiEnvelope {
  * change and everything re-renders from it. That is why an admin's edit shows up on every open tab at
  * once, and why no view has to guess what a write did to the rest of the tournament.
  */
+/** Remembers, for this tab, which server build it last reloaded for - so a reload can never loop. */
+const RELOADED_FOR_KEY = 'ba-reloaded-for'
+
+function reloadedFor(): string | null {
+  try {
+    return sessionStorage.getItem(RELOADED_FOR_KEY)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Reloads the page onto the server's build, once per build. Should the reload somehow come back on
+ * the old code, it is not tried again - the banner stays up and the button is left to a person.
+ */
+function reloadOnto(buildId: string): void {
+  if (reloadedFor() === buildId) return
+
+  try {
+    sessionStorage.setItem(RELOADED_FOR_KEY, buildId)
+  } catch {
+    // Without storage there is no loop guard, but a reload that works is still worth doing.
+  }
+
+  window.location.reload()
+}
+
 export function useDashboard() {
   const state = useState<DashboardState | null>('ba-state', () => null)
   const connection = useState<Connection>('ba-connection', () => 'connecting')
+  /** The server runs a different build than this page was built from - a deploy has happened. */
+  const outdated = useState<boolean>('ba-outdated', () => false)
+  /**
+   * Something on the page holds work a reload would throw away - the mappool editor's draft. While
+   * it does, a new build only puts up a banner, and the reload waits until the work is saved or gone.
+   */
+  const unsavedWork = useState<boolean>('ba-unsaved-work', () => false)
   const { t, tCode } = useLang()
 
   /** The first read, used for server-side rendering; SSE takes over the moment the page is alive. */
@@ -43,6 +77,16 @@ export function useDashboard() {
   const connect = () => {
     if (!import.meta.client) return () => {}
 
+    // A restart drops the stream and `EventSource` reconnects on its own, so the first state from a
+    // redeployed server is also the first sign of it. The page's own code is still the old build's.
+    const ownBuild = useRuntimeConfig().app.buildId
+    const serverBuild = computed(() => state.value?.buildId)
+
+    const stopWatching = watch([serverBuild, unsavedWork], ([build, unsaved]) => {
+      outdated.value = build != null && build !== ownBuild
+      if (outdated.value && !unsaved) reloadOnto(build!)
+    })
+
     const source = new EventSource('/api/events')
 
     source.onopen = () => {
@@ -58,8 +102,14 @@ export function useDashboard() {
       connection.value = source.readyState === EventSource.CLOSED ? 'offline' : 'connecting'
     }
 
-    return () => source.close()
+    return () => {
+      stopWatching()
+      source.close()
+    }
   }
+
+  /** Reloads now, whatever is unsaved - the banner's button, for whoever would rather not wait. */
+  const reloadNow = () => window.location.reload()
 
   const toast = useToast()
 
@@ -130,6 +180,9 @@ export function useDashboard() {
     connection,
     load,
     connect,
+    outdated,
+    unsavedWork,
+    reloadNow,
     api,
     user,
     isAdmin,

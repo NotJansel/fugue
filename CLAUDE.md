@@ -202,6 +202,11 @@ field breaks existing deployments.
   (`/api/events`) on every change and the client re-renders from it. The one exception is the mappool
   editor, which keeps an unsaved draft that renders instead of the pushed pool until it is saved or
   discarded.
+- A **deploy reloads every open tab**. `DashboardState.buildId` is the server's Nuxt build ID, and a
+  tab whose own `useRuntimeConfig().app.buildId` differs reloads as soon as the reconnected stream
+  says so - once per build, guarded in `sessionStorage` so it can't loop. While `unsavedWork` is set
+  (the mappool draft) it only shows a banner and reloads once the draft is saved or discarded. In
+  dev both IDs are `dev`, so it never fires there.
 - The dashboard is **English and German**, translated in the browser by `app/composables/useLang.ts`.
   The server does not translate what the page shows: API responses, tournament warnings and auction
   rejections carry a dictionary `code` plus args *alongside* English prose, and the client shows the

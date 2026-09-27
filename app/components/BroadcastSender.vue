@@ -6,8 +6,13 @@ const { t } = useLang()
 /** Kept in step with `BROADCAST_MAX_LENGTH` on the server, which refuses anything longer. */
 const MAX_LENGTH = 500
 
+/** Kept in step with `BROADCAST_MAX_SECONDS` on the server. */
+const MAX_SECONDS = 3600
+
 const open = ref(false)
 const message = ref('')
+/** How long it stays up, in seconds; 0 until each viewer closes it. Kept between messages. */
+const seconds = ref(0)
 const sending = ref(false)
 
 // Half a message typed out is work a deploy's reload would throw away.
@@ -22,7 +27,7 @@ async function send() {
 
   try {
     // The banner it puts up on this page too is confirmation enough.
-    await api('/api/broadcast', { message: message.value }, { quiet: true })
+    await api('/api/broadcast', { message: message.value, durationSeconds: seconds.value }, { quiet: true })
     message.value = ''
     open.value = false
   } finally {
@@ -64,6 +69,19 @@ async function send() {
         <p class="text-end text-xs text-muted tnum">
           {{ message.trim().length }} / {{ MAX_LENGTH }}
         </p>
+
+        <UFormField
+          :label="t('broadcast.duration')"
+          :help="seconds > 0 ? t('broadcast.durationTimed', { seconds }) : t('broadcast.durationUntilClosed')"
+        >
+          <UInputNumber
+            v-model="seconds"
+            :min="0"
+            :max="MAX_SECONDS"
+            :step="5"
+            class="w-40"
+          />
+        </UFormField>
       </div>
     </template>
 

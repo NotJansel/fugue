@@ -430,6 +430,8 @@ export interface Broadcast {
   from: string
   /** Epoch millis at which it was sent. */
   at: number
+  /** How long it stays up from `at`, in milliseconds; `null` keeps it up until the viewer closes it. */
+  durationMs: number | null
 }
 
 /** A player as the dashboard sees them: stored fields plus everything derived from them. */

@@ -2,19 +2,38 @@
 import type { Broadcast } from '#shared/types'
 
 /**
- * Shows a message an organiser sent to everyone, across the top of every page, until the viewer
- * closes it - a notice about a break or a change of plan has to be read, not merely flash past.
+ * Shows a message an organiser sent to everyone, across the top of every page - for as long as they
+ * chose, or until the viewer closes it: a notice about a break or a change of plan has to be read,
+ * not merely flash past.
  *
  * Only a message that arrives while the page is open is shown (`onArrival`); a newer one replaces it.
+ * A timed one is measured from when it was *sent*, so every screen takes it down at the same moment,
+ * and a tab that reconnects while it is still up gets the rest of it.
  */
 const { state } = useDashboard()
 const { t } = useLang()
 
 const shown = ref<Broadcast | null>(null)
+/** How far into its time a timed message already was when it arrived - where the bar starts. */
+const elapsedMs = ref(0)
+let timer: ReturnType<typeof setTimeout> | undefined
+
+const dismiss = () => {
+  clearTimeout(timer)
+  shown.value = null
+}
 
 onArrival(() => state.value?.broadcast, (broadcast) => {
+  clearTimeout(timer)
   shown.value = broadcast
-})
+
+  if (broadcast.durationMs != null) {
+    elapsedMs.value = Math.max(Date.now() - broadcast.at, 0)
+    timer = setTimeout(dismiss, broadcast.durationMs - elapsedMs.value)
+  }
+}, broadcast => broadcast.durationMs)
+
+onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
@@ -29,7 +48,7 @@ onArrival(() => state.value?.broadcast, (broadcast) => {
       v-if="shown"
       :key="shown.id"
       role="alert"
-      class="pointer-events-auto w-full max-w-lg rounded-xl border border-primary/50 bg-elevated/95 shadow-lg backdrop-blur"
+      class="pointer-events-auto w-full max-w-lg overflow-hidden rounded-xl border border-primary/50 bg-elevated/95 shadow-lg backdrop-blur"
     >
       <div class="flex items-start gap-3 px-4 py-3">
         <UIcon
@@ -52,9 +71,29 @@ onArrival(() => state.value?.broadcast, (broadcast) => {
           variant="ghost"
           size="xs"
           :aria-label="t('common.close')"
-          @click="shown = null"
+          @click="dismiss"
         />
       </div>
+
+      <div
+        v-if="shown.durationMs != null"
+        class="broadcast-countdown h-0.5 bg-primary"
+        :style="{ animationDuration: `${shown.durationMs}ms`, animationDelay: `-${elapsedMs}ms` }"
+      />
     </div>
   </Transition>
 </template>
+
+<style scoped>
+.broadcast-countdown {
+  transform-origin: left;
+  animation-name: broadcast-countdown;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes broadcast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+</style>

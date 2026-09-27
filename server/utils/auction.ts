@@ -1,5 +1,5 @@
 import { Routes } from 'discord.js'
-import type { AuctionSnapshot } from '#shared/types'
+import type { AuctionSale, AuctionSnapshot } from '#shared/types'
 import { auctionCard, getClient } from '../bot/client'
 import { emitChange } from './bus'
 import { getBalance, release, reserve, settleHold } from './purse-store'
@@ -69,6 +69,14 @@ interface AuctionState {
 }
 
 let current: AuctionState | null = null
+
+/**
+ * The most recent auction that ended in a sale, for the dashboard's "sold" banner. Like the auction
+ * itself it is not persisted: it only means anything for the few seconds after the hammer falls.
+ */
+let lastSale: AuctionSale | null = null
+
+export const lastAuctionSale = (): AuctionSale | null => lastSale
 
 /**
  * Serialises everything that touches the auction.
@@ -203,6 +211,19 @@ async function end(auction: AuctionState): Promise<void> {
 
       const team = await recordSale(auction.subject.osuId, winnerId, auction.highestBid)
       if (team != null) notes += ` ${auction.subject.username} joins ${team}'s team.`
+
+      const captain = captainForDiscordId(getTournament(), winnerId)
+
+      if (captain) {
+        lastSale = {
+          id: auction.messageId,
+          osuId: auction.subject.osuId,
+          username: auction.subject.username,
+          captainOsuId: captain.osuId,
+          price: auction.highestBid,
+          at: Date.now()
+        }
+      }
     } else {
       notes += ' Could not debit the winner\'s purse (insufficient funds or error).'
     }

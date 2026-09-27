@@ -5,11 +5,12 @@ import { config } from '../../utils/config'
 import { apiError } from '../../utils/http-error'
 import { fetchOsuUser, osuApiReady } from '../../utils/osu-api'
 import { requireAdmin } from '../../utils/session'
-import { playerDescription, pool, startingBid } from '../../utils/tournament-model'
+import { playerDescription, pool, startingBid, unsoldPool } from '../../utils/tournament-model'
 import { getTournament, replacePlayers } from '../../utils/tournament-store'
 
 interface Body {
-  osuId: string
+  /** Left out, the auction is for a player drawn at random from whoever in the pool is still unsold. */
+  osuId?: string | null
   startingBid?: number | null
   maxBid?: number | null
 }
@@ -54,12 +55,22 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
 
   const body = await readBody<Body>(event)
   const tournament = getTournament()
-  const index = tournament.players.findIndex(player => player.osuId === body.osuId)
+
+  let osuId = body.osuId
+
+  if (osuId == null) {
+    const unsold = unsoldPool(tournament)
+    if (unsold.length === 0) throw apiError(409, 'Every player in the pool has been sold.', 'err.auction.poolEmpty')
+
+    osuId = unsold[Math.floor(Math.random() * unsold.length)]!.osuId
+  }
+
+  const index = tournament.players.findIndex(player => player.osuId === osuId)
 
   if (index < 0) throw apiError(404, 'That player isn\'t in the tournament.', 'err.player.unknown')
 
   // Captains and anyone below the field cut are not up for sale, whatever the request asks for.
-  if (!pool(tournament).some(player => player.osuId === body.osuId)) {
+  if (!pool(tournament).some(player => player.osuId === osuId)) {
     throw apiError(409, 'That player is not in the auction pool.', 'err.player.notInPool')
   }
 

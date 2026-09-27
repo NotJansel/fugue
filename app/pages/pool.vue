@@ -29,8 +29,12 @@ const canStart = computed(() =>
   isAdmin.value && state.value?.config.auctionChannelConfigured === true && auction.value == null
 )
 
-async function start(osuId: string) {
-  starting.value = osuId
+/** Which button is busy starting an auction: a player's osu! ID, or `RANDOM` for the random draw. */
+const RANDOM = 'random'
+
+/** Starts an auction for `osuId`, or with none for a player the server draws from the unsold pool. */
+async function start(osuId: string | null) {
+  starting.value = osuId ?? RANDOM
 
   try {
     await api('/api/auction/start', { osuId, startingBid: startingBid.value, maxBid: maxBid.value })
@@ -83,6 +87,15 @@ async function start(osuId: string) {
             class="w-32"
           />
         </UFormField>
+        <UButton
+          icon="i-lucide-dices"
+          color="secondary"
+          :disabled="!canStart || !unsold.length || starting != null"
+          :loading="starting === RANDOM"
+          @click="start(null)"
+        >
+          {{ t('pool.random') }}
+        </UButton>
       </div>
     </div>
 

@@ -1,5 +1,5 @@
 import type { DashboardState, PlayerDto, QualifierLobbyDto, TeamDto, UserSession } from '#shared/types'
-import { auctionSnapshot } from './auction'
+import { auctionSnapshot, lastAuctionSale } from './auction'
 import { config, osuOauthConfigured } from './config'
 import { botConnected } from '../bot/client'
 import { currentImportProgress, lastImportOutcome } from './import-progress'
@@ -171,6 +171,12 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     ? tournament.teamNames[leaderCaptain.osuId] ?? leaderCaptain.username
     : null
 
+  const sale = lastAuctionSale()
+  const saleCaptain = sale ? byOsuId.get(sale.captainOsuId) : undefined
+  const lastSale = sale
+    ? { ...sale, teamName: tournament.teamNames[sale.captainOsuId] ?? saleCaptain?.username ?? sale.captainOsuId }
+    : null
+
   const guest = user == null
 
   return {
@@ -202,6 +208,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     mappoolSheet: guest ? null : tournament.mappoolSheet ?? null,
     auction: guest && auction ? { ...auction, highestBidderId: null } : auction,
     auctionLeader,
+    lastSale,
     warnings: warnings(tournament),
     sheet: guest ? null : tournament.sheet ?? null,
     registrationSheet: guest ? null : tournament.registrationSheet ?? null,

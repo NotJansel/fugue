@@ -73,6 +73,8 @@ const warnings = computed(() => state.value?.warnings ?? [])
       </template>
     </UHeader>
 
+    <SaleBanner />
+
     <UMain class="flex-1">
       <UContainer class="py-6 sm:py-8 space-y-6">
         <UAlert

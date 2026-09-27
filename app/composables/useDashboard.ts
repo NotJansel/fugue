@@ -90,9 +90,14 @@ export function useDashboard() {
       connection.value = 'live'
     }
 
+    // Only the stream sets the clock: the server-rendered state was built a page load ago.
+    const clock = useServerClock()
+
     source.onmessage = (event: MessageEvent<string>) => {
       connection.value = 'live'
-      state.value = JSON.parse(event.data) as DashboardState
+      const next = JSON.parse(event.data) as DashboardState
+      clock.sync(next.serverTime)
+      state.value = next
     }
 
     source.onerror = () => {

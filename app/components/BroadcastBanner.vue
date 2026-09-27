@@ -16,6 +16,7 @@ const { state, isAdmin, api } = useDashboard()
 const { t } = useLang()
 
 const broadcast = computed(() => state.value?.broadcast ?? null)
+const clock = useServerClock()
 
 /**
  * The page renders nothing until it is mounted: whether a timed message has run out depends on the
@@ -49,7 +50,7 @@ watch([() => broadcast.value?.id, mounted], () => {
   const current = broadcast.value
   if (!mounted.value || current?.durationMs == null) return
 
-  elapsedMs.value = Math.max(Date.now() - current.at, 0)
+  elapsedMs.value = Math.max(clock.now() - current.at, 0)
   const remaining = current.durationMs - elapsedMs.value
 
   if (remaining <= 0) {

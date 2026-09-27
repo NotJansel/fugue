@@ -8,15 +8,18 @@ export const OPENING_DELAY_MS = 3_000
  * Seconds left until `endsAt`, ticking on the client.
  *
  * The server sends the instant a countdown lapses rather than a duration, so every open tab agrees on
- * when the hammer falls no matter when it connected or how far its clock has drifted since.
+ * when the hammer falls no matter when it connected - and it is read against the server's clock
+ * (`useServerClock`), so a viewer whose own clock is off still sees the right number.
  */
 export function useCountdown(endsAt: Ref<number | null | undefined>, totalMs = AUCTION_DURATION_MS) {
-  const now = ref(Date.now())
+  // `endsAt` is on the server's clock, so this counts on it too, not on whatever the viewer's says.
+  const clock = useServerClock()
+  const now = ref(clock.now())
   let timer: ReturnType<typeof setInterval> | null = null
 
   onMounted(() => {
     timer = setInterval(() => {
-      now.value = Date.now()
+      now.value = clock.now()
     }, 200)
   })
 

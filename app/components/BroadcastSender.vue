@@ -23,9 +23,10 @@ useUnsavedWork(() => open.value && message.value.trim() !== '')
  * one that has run out is up nowhere any more; `now` is taken when the dialog opens, which is when
  * this is read.
  */
-const now = ref(Date.now())
+const clock = useServerClock()
+const now = ref(clock.now())
 watch(open, (isOpen) => {
-  if (isOpen) now.value = Date.now()
+  if (isOpen) now.value = clock.now()
 })
 
 const current = computed(() => {

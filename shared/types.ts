@@ -577,6 +577,12 @@ export interface ImportOutcome {
  * Discord IDs, purse balances, spare sheet columns and the raw sheet links stripped out.
  */
 export interface DashboardState {
+  /**
+   * The server's clock when this state was built, in epoch millis. Every deadline here - an auction's
+   * `opensAt` and `endsAt`, a banner's `at` - is on that clock, and a viewer's own can be seconds off
+   * it; this is what the client corrects by (`useServerClock`).
+   */
+  serverTime: number
   /** The server's Nuxt build. A tab built from another one reloads, so a deploy reaches every screen. */
   buildId: string
   user: UserSession | null

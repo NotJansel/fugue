@@ -224,6 +224,10 @@ field breaks existing deployments.
   the OAuth app is configured.
 - `server/bot/client.ts` hands the Discord client to code outside the bot — it is null until the bot
   connects, and the dashboard is up long before that. Everything that needs Discord copes with null.
+- Every deadline the server sends (`opensAt`, `endsAt`, a banner's `at`) is on **its** clock, and
+  the client reads them against it: each pushed state carries `serverTime`, and `useServerClock`
+  keeps the offset. Never compare one against a bare `Date.now()` in the app - a viewer whose clock
+  is ten seconds slow would see a 13-second wait before bidding opens.
 - The dashboard holds **no state of its own**: the server pushes a full `DashboardState` over SSE
   (`/api/events`) on every change and the client re-renders from it. The one exception is the mappool
   editor, which keeps an unsaved draft that renders instead of the pushed pool until it is saved or

@@ -1,7 +1,7 @@
 /**
  * Something older than this when it arrives is not news: a tab that slept or lost its connection
- * catches up on the state, not on the announcements it missed. Loose, since `at` is the server's
- * clock and the viewer's may be a little off it.
+ * catches up on the state, not on the announcements it missed. `at` is the server's clock, and so
+ * is what it is measured against (`useServerClock`).
  */
 const STALE_AFTER_MS = 60_000
 
@@ -15,10 +15,12 @@ export function onArrival<T extends { id: string, at: number }>(
   source: () => T | null | undefined,
   announce: (item: T) => void
 ): void {
+  const clock = useServerClock()
+
   onMounted(() => {
     watch(source, (item, previous) => {
       if (!item || item.id === previous?.id) return
-      if (Date.now() - item.at > STALE_AFTER_MS) return
+      if (clock.now() - item.at > STALE_AFTER_MS) return
 
       announce(item)
     })

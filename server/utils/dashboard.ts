@@ -202,6 +202,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
   const guest = user == null
 
   return {
+    serverTime: Date.now(),
     buildId: useRuntimeConfig().app.buildId,
     user,
     config: {

@@ -179,15 +179,15 @@ field breaks existing deployments.
   cancelled auction announces nothing.
 - An organiser can **message every open dashboard** (`POST /api/broadcast`, the megaphone in the
   header). The last message is kept in memory (`server/utils/broadcast.ts`) and rides on the state
-  push as `DashboardState.broadcast`; `BroadcastBanner.vue` shows it for the `durationMs` the
-  organiser chose (up to an hour), counted from when it was sent so every screen takes it down
-  together, or until the viewer closes it when that is `null`.
-  `POST /api/broadcast/clear` takes it down on every screen at once (from the banner or the dialog).
-  Both top banners go through
-  `onArrival` (`useArrivals.ts`): only something new that arrives while the page is open is
-  announced, and only while it is fresh - a minute, or a timed message's own duration. The message
-  is free text, shown as text and not translated; its 500-character and one-hour limits are
-  hand-copied in `BroadcastSender.vue`.
+  push as `DashboardState.broadcast`. `BroadcastBanner.vue` is *derived* from it rather than
+  announcing arrivals: whatever is on file shows, on a page open when it went out or loaded later,
+  for the `durationMs` the organiser chose (up to an hour, counted from when it was sent so every
+  screen takes it down together) or until closed when that is `null`. Closing it hides it in that
+  browser, remembered in `localStorage` across refreshes; `POST /api/broadcast/clear` takes it down on
+  every screen. The auction result banner is the one that goes through `onArrival`
+  (`useArrivals.ts`): only something new that arrives while the page is open, and not more than a
+  minute stale, is announced. The message is free text, shown as text and not translated; its
+  500-character and one-hour limits are hand-copied in `BroadcastSender.vue`.
 - **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
   endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
   that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be

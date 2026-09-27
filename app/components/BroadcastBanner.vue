@@ -1,43 +1,85 @@
 <script setup lang="ts">
-import type { Broadcast } from '#shared/types'
-
 /**
- * Shows a message an organiser sent to everyone, across the top of every page - for as long as they
+ * Shows the message an organiser sent to everyone, across the top of every page - for as long as they
  * chose, or until the viewer closes it: a notice about a break or a change of plan has to be read,
  * not merely flash past.
  *
- * Only a message that arrives while the page is open is shown (`onArrival`); a newer one replaces it.
- * A timed one is measured from when it was *sent*, so every screen takes it down at the same moment,
- * and a tab that reconnects while it is still up gets the rest of it.
+ * Unlike the auction result this is not a one-off announcement but a notice that is *up*: whatever
+ * the server has on file shows, on a page open when it went out or loaded long after, and survives a
+ * refresh. A timed one is measured from when it was *sent*, so every screen takes it down at the same
+ * moment. Closing it hides it in this browser only, remembered across refreshes - and taking it down
+ * for everyone is the organiser's `/api/broadcast/clear`.
  */
+const DISMISSED_KEY = 'ba-dismissed-broadcast'
+
 const { state, isAdmin, api } = useDashboard()
 const { t } = useLang()
 
-const shown = ref<Broadcast | null>(null)
-/** How far into its time a timed message already was when it arrived - where the bar starts. */
+const broadcast = computed(() => state.value?.broadcast ?? null)
+
+/**
+ * The page renders nothing until it is mounted: whether a timed message has run out depends on the
+ * viewer's clock, and whether it was closed on their browser's storage - neither of which the server
+ * render can know.
+ */
+const mounted = ref(false)
+/** The message this browser closed - the last one only, since only the last one can be up. */
+const dismissedId = ref<string | null>(null)
+/** Whether the timed message on file has run out. */
+const expired = ref(false)
+/** How far into its time a timed message already was when it came up - where the bar starts. */
 const elapsedMs = ref(0)
 let timer: ReturnType<typeof setTimeout> | undefined
 
-const dismiss = () => {
-  clearTimeout(timer)
-  shown.value = null
-}
-
-onArrival(() => state.value?.broadcast, (broadcast) => {
-  clearTimeout(timer)
-  shown.value = broadcast
-
-  if (broadcast.durationMs != null) {
-    elapsedMs.value = Math.max(Date.now() - broadcast.at, 0)
-    timer = setTimeout(dismiss, broadcast.durationMs - elapsedMs.value)
+onMounted(() => {
+  try {
+    dismissedId.value = localStorage.getItem(DISMISSED_KEY)
+  } catch {
+    // No storage: closing still works, it just isn't remembered past this page.
   }
-}, broadcast => broadcast.durationMs)
 
-// An organiser taking the message down ends it on every screen. A newer one replaces it through
-// `onArrival` instead.
-watch(() => state.value?.broadcast?.id, (id) => {
-  if (shown.value && id == null) dismiss()
+  mounted.value = true
 })
+
+// Each new message starts its own clock; a timed one is taken down when its time is up.
+watch([() => broadcast.value?.id, mounted], () => {
+  clearTimeout(timer)
+  expired.value = false
+
+  const current = broadcast.value
+  if (!mounted.value || current?.durationMs == null) return
+
+  elapsedMs.value = Math.max(Date.now() - current.at, 0)
+  const remaining = current.durationMs - elapsedMs.value
+
+  if (remaining <= 0) {
+    expired.value = true
+  } else {
+    timer = setTimeout(() => {
+      expired.value = true
+    }, remaining)
+  }
+}, { immediate: true })
+
+const shown = computed(() => {
+  const current = broadcast.value
+  if (!mounted.value || !current || expired.value || current.id === dismissedId.value) return null
+
+  return current
+})
+
+/** Hides the message in this browser, for good - a refresh does not bring it back. */
+function dismiss() {
+  if (!shown.value) return
+
+  dismissedId.value = shown.value.id
+
+  try {
+    localStorage.setItem(DISMISSED_KEY, shown.value.id)
+  } catch {
+    // Hidden for now all the same.
+  }
+}
 
 const withdrawing = ref(false)
 

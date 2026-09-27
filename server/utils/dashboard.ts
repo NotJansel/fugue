@@ -1,6 +1,7 @@
 import { useRuntimeConfig } from 'nitropack/runtime'
 import type { DashboardState, PlayerDto, QualifierLobbyDto, TeamDto, UserSession } from '#shared/types'
 import { auctionSnapshot, lastAuctionResult } from './auction'
+import { lastBroadcast } from './broadcast'
 import { config, osuOauthConfigured } from './config'
 import { botConnected } from '../bot/client'
 import { currentImportProgress, lastImportOutcome } from './import-progress'
@@ -224,6 +225,7 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
     auction: guest && auction ? { ...auction, highestBidderId: null } : auction,
     auctionLeader,
     lastResult,
+    broadcast: lastBroadcast(),
     warnings: warnings(tournament),
     sheet: guest ? null : tournament.sheet ?? null,
     registrationSheet: guest ? null : tournament.registrationSheet ?? null,

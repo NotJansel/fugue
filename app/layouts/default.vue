@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { state, isGuest, outdated, reloadNow } = useDashboard()
+const { state, isGuest, isAdmin, outdated, reloadNow } = useDashboard()
 const { t, tCode } = useLang()
 
 const links = computed(() => [
@@ -56,6 +56,7 @@ const warnings = computed(() => state.value?.warnings ?? [])
       <template #right>
         <ConnectionPill class="hidden xl:flex" />
         <LangSwitch class="hidden md:block" />
+        <BroadcastSender v-if="isAdmin" />
         <UserMenu />
       </template>
 
@@ -73,7 +74,11 @@ const warnings = computed(() => state.value?.warnings ?? [])
       </template>
     </UHeader>
 
-    <AuctionResultBanner />
+    <!-- One column for everything announced across the top, so two at once stack rather than overlap. -->
+    <div class="pointer-events-none fixed inset-x-0 top-20 z-50 flex flex-col items-center gap-2 px-4">
+      <BroadcastBanner />
+      <AuctionResultBanner />
+    </div>
 
     <UMain class="flex-1">
       <UContainer class="py-6 sm:py-8 space-y-6">

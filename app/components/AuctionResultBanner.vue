@@ -5,17 +5,9 @@ import type { AuctionResultDto } from '#shared/types'
  * Announces how an auction ended - who bought whom, or that nobody bid - across the top of every
  * page, for ten seconds after the hammer falls.
  *
- * Only a result that arrives while the page is open is announced: whatever is on file when it loads
- * has already been announced to whoever was watching, and a reload should not play it again.
+ * Only a result that arrives while the page is open is announced (`onArrival`).
  */
 const DISMISS_AFTER_MS = 10_000
-
-/**
- * A result older than this when it arrives is not news: a tab that slept or lost its connection
- * catches up on the state, not on the announcements it missed. Looser than the ten seconds, since
- * `at` is the server's clock and the viewer's may be a little off it.
- */
-const STALE_AFTER_MS = 60_000
 
 const { state } = useDashboard()
 const { t } = useLang()
@@ -38,73 +30,63 @@ const dismiss = () => {
   shown.value = null
 }
 
-onMounted(() => {
-  watch(
-    () => state.value?.lastResult ?? null,
-    (result, previous) => {
-      if (!result || result.id === previous?.id) return
-      if (Date.now() - result.at > STALE_AFTER_MS) return
-
-      clearTimeout(timer)
-      shown.value = result
-      timer = setTimeout(dismiss, DISMISS_AFTER_MS)
-    }
-  )
+onArrival(() => state.value?.lastResult, (result) => {
+  clearTimeout(timer)
+  shown.value = result
+  timer = setTimeout(dismiss, DISMISS_AFTER_MS)
 })
 
 onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
-  <div class="pointer-events-none fixed inset-x-0 top-20 z-50 flex justify-center px-4">
-    <Transition
-      mode="out-in"
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="-translate-y-4 opacity-0"
-      leave-active-class="transition duration-200 ease-in"
-      leave-to-class="-translate-y-4 opacity-0"
+  <Transition
+    mode="out-in"
+    enter-active-class="transition duration-300 ease-out"
+    enter-from-class="-translate-y-4 opacity-0"
+    leave-active-class="transition duration-200 ease-in"
+    leave-to-class="-translate-y-4 opacity-0"
+  >
+    <div
+      v-if="shown"
+      :key="shown.id"
+      role="status"
+      class="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-xl border bg-elevated/95 shadow-lg backdrop-blur"
+      :class="shown.sale ? 'border-secondary/40' : 'border-default/60'"
     >
-      <div
-        v-if="shown"
-        :key="shown.id"
-        role="status"
-        class="pointer-events-auto relative w-full max-w-lg overflow-hidden rounded-xl border bg-elevated/95 shadow-lg backdrop-blur"
-        :class="shown.sale ? 'border-secondary/40' : 'border-default/60'"
-      >
-        <div class="flex items-center gap-3 px-4 py-3">
-          <PlayerAvatar
-            :osu-id="shown.osuId"
-            :username="shown.username"
-            size="md"
+      <div class="flex items-center gap-3 px-4 py-3">
+        <PlayerAvatar
+          :osu-id="shown.osuId"
+          :username="shown.username"
+          size="md"
+        />
+
+        <p class="min-w-0 flex-1 text-sm">
+          <UIcon
+            :name="shown.sale ? 'i-lucide-gavel' : 'i-lucide-circle-slash'"
+            class="me-1 size-4 align-[-3px]"
+            :class="shown.sale ? 'text-secondary' : 'text-muted'"
           />
+          {{ message }}
+        </p>
 
-          <p class="min-w-0 flex-1 text-sm">
-            <UIcon
-              :name="shown.sale ? 'i-lucide-gavel' : 'i-lucide-circle-slash'"
-              class="me-1 size-4 align-[-3px]"
-              :class="shown.sale ? 'text-secondary' : 'text-muted'"
-            />
-            {{ message }}
-          </p>
-
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            :aria-label="t('common.close')"
-            @click="dismiss"
-          />
-        </div>
-
-        <div
-          class="sale-countdown h-0.5"
-          :class="shown.sale ? 'bg-secondary' : 'bg-(--ui-text-muted)'"
-          :style="{ animationDuration: `${DISMISS_AFTER_MS}ms` }"
+        <UButton
+          icon="i-lucide-x"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          :aria-label="t('common.close')"
+          @click="dismiss"
         />
       </div>
-    </Transition>
-  </div>
+
+      <div
+        class="sale-countdown h-0.5"
+        :class="shown.sale ? 'bg-secondary' : 'bg-(--ui-text-muted)'"
+        :style="{ animationDuration: `${DISMISS_AFTER_MS}ms` }"
+      />
+    </div>
+  </Transition>
 </template>
 
 <style scoped>

@@ -177,6 +177,12 @@ field breaks existing deployments.
 - **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
   endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
   that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be
+- An organiser can **message every open dashboard** (`POST /api/broadcast`, the megaphone in the
+  header). The last message is kept in memory (`server/utils/broadcast.ts`) and rides on the state
+  push as `DashboardState.broadcast`; `BroadcastBanner.vue` shows it until the viewer closes it. Both
+  top banners go through `onArrival` (`useArrivals.ts`): only something new that arrives while the
+  page is open, and not more than a minute stale, is announced. The message is free text, shown as
+  text and not translated; its 500-character limit is hand-copied in `BroadcastSender.vue`.
   placed as someone else. A team may have one stand-in, a Discord ID an organiser sets on the team
   card (`POST /api/teams/proxy`, `TournamentState.proxies`, table `team_proxies`, keyed by captain
   osu! ID and pruned/rekeyed with the rosters). `captainForBidder` resolves either to the captain,

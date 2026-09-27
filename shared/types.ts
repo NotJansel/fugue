@@ -420,6 +420,18 @@ export interface AuctionResultDto extends Omit<AuctionResult, 'sale'> {
 
 /** A player as the dashboard sees them: stored fields plus everything derived from them. */
 export interface PlayerDto {
+/** A message an organiser sent to every open dashboard. */
+export interface Broadcast {
+  /** Tells one message from the next, so a client announces each exactly once. */
+  id: string
+  /** As the organiser typed it - shown as text, never as markup. */
+  message: string
+  /** The organiser's name, as the dashboard shows it for them. */
+  from: string
+  /** Epoch millis at which it was sent. */
+  at: number
+}
+
   osuId: string
   username: string
   /** 1-based position in the seeding. */
@@ -565,6 +577,8 @@ export interface DashboardState {
   lastResult: AuctionResultDto | null
   warnings: TournamentWarning[]
   sheet: SheetImportConfig | null
+  /** The last message an organiser sent to everyone, for the banner that shows it. */
+  broadcast: Broadcast | null
   registrationSheet: RegistrationSheetConfig | null
   importProgress: ImportProgress | null
   importOutcome: ImportOutcome | null

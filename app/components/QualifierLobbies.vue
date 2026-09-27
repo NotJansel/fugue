@@ -68,7 +68,7 @@ const matchLink = (matchId: number) => `https://osu.ppy.sh/community/matches/${m
           v-if="isAdmin"
           class="mt-1 text-xs text-muted"
         >
-          {{ t('lobbies.hint') }}
+          {{ t('lobbies.hint', { acronym: useRuntimeConfig().public.tournamentAcronym }) }}
         </p>
       </div>
     </template>

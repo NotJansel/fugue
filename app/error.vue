@@ -29,7 +29,7 @@ useHead({
       crossorigin: ''
     }
   ],
-  title: () => `${props.error.statusCode} · ${t('app.title')}`
+  title: () => `${props.error.statusCode} · ${useRuntimeConfig().public.tournamentName}`
 })
 </script>
 

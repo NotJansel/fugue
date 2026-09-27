@@ -20,6 +20,19 @@ export default defineNuxtConfig({
     fallback: 'dark'
   },
 
+  /**
+   * The tournament this deployment runs. Built for Trinitas Proelium, and those are the defaults;
+   * another tournament sets `NUXT_PUBLIC_TOURNAMENT_NAME` and `NUXT_PUBLIC_TOURNAMENT_ACRONYM` at
+   * runtime - Nuxt reads the `NUXT_PUBLIC_` names itself, so a published image needs no rebuild.
+   * The acronym is what qualifier lobbies are named after: `<ACRONYM>: (Qualifiers) vs (Lobby …)`.
+   */
+  runtimeConfig: {
+    public: {
+      tournamentName: 'Trinitas Proelium',
+      tournamentAcronym: 'TP'
+    }
+  },
+
   // Nothing here is prerenderable: every page is a live view of the tournament, rendered per request
   // so a signed-in organiser and a guest never share a cached payload.
 

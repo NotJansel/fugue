@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { state, isGuest, isAdmin, outdated, reloadNow } = useDashboard()
 const { t, tCode } = useLang()
+const { tournamentName } = useRuntimeConfig().public
 
 const links = computed(() => [
   { label: t('nav.auction'), icon: 'i-lucide-gavel', to: '/' },
@@ -34,7 +35,7 @@ const warnings = computed(() => state.value?.warnings ?? [])
           class="flex items-center gap-2.5 rounded-lg p-1 -ms-1 outline-primary/40 focus-visible:outline-2"
         >
           <AppLogo class="size-8 shrink-0" />
-          <span class="hidden lg:block font-display text-base font-semibold leading-tight">{{ t('app.title') }}</span>
+          <span class="hidden lg:block font-display text-base font-semibold leading-tight">{{ tournamentName }}</span>
         </NuxtLink>
       </template>
 
@@ -122,7 +123,7 @@ const warnings = computed(() => state.value?.warnings ?? [])
 
     <footer class="border-t border-default/60 mt-8">
       <UContainer class="py-5 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
-        <span>{{ t('app.title') }} · {{ new Date().getFullYear() }}</span>
+        <span>{{ tournamentName }} · {{ new Date().getFullYear() }}</span>
         <ConnectionPill class="md:hidden" />
       </UContainer>
     </footer>

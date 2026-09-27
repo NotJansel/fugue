@@ -13,6 +13,13 @@ This is a port of a Kotlin (KordEx + Ktor) bot. The three JSON files in `data/` 
 shapes the Kotlin version wrote, so any change to `shared/types.ts` that renames or drops a persisted
 field breaks existing deployments.
 
+Built for the osu! tournament **Trinitas Proelium** and published under MIT. Its name and acronym are
+`runtimeConfig.public.tournamentName`/`tournamentAcronym` in `nuxt.config.ts`, overridden at runtime
+by `NUXT_PUBLIC_TOURNAMENT_NAME`/`NUXT_PUBLIC_TOURNAMENT_ACRONYM` - the `NUXT_PUBLIC_` prefix is what
+lets a published image be re-branded without a rebuild, which is why these two break the naming of
+every other variable. Nothing else may hard-code the tournament: no `Trinitas`, no `TP:` in code or
+in the dictionary.
+
 ## Gotchas
 
 - `server/utils/json-store.ts` is the only thing that touches disk. Writes go through a promise
@@ -89,7 +96,7 @@ field breaks existing deployments.
   change to lobby scores **unless `seedingLocked`** - the lock is the only thing that stops the
   seeding moving under an organiser's hands. `POST /api/seeding/reseed` does the same on demand.
 - `qualifier-lobbies.ts` scans the match history every minute for lobbies named
-  `TP: (Qualifiers) vs (Lobby <ID>)`, back to the newest match already seen - one page a minute once
+  `<ACRONYM>: (Qualifiers) vs (Lobby <ID>)` (`TP` for Trinitas Proelium), back to the newest match already seen - one page a minute once
   running, and at most `MAX_PAGES` (a few hours of history) on a cold start, which is why a lobby from
   further back has to be added by link. It reads each open lobby every minute and once more when it
   closes, paging

@@ -1,3 +1,4 @@
+import { useRuntimeConfig } from 'nitropack/runtime'
 import type { LobbyScore, QualifierLobby } from '#shared/types'
 import { emitChange } from './bus'
 import {
@@ -18,7 +19,8 @@ import { getTournament, reseedByZSum } from './tournament-store'
 /**
  * The osu! lobbies the qualifiers are played in, and the scores set in them.
  *
- * Referees name a lobby `TP: (Qualifiers) vs (Lobby 1SO12)`, and that is how they are found: the
+ * Referees name a lobby `TP: (Qualifiers) vs (Lobby 1SO12)` - `TP` being the tournament's acronym,
+ * `NUXT_PUBLIC_TOURNAMENT_ACRONYM` - and that is how they are found: the
  * match history is scanned for the name every minute. osu! has every score set in a lobby, which is
  * where the qualifier results come from: each lobby is read again every minute while it is open and
  * once more when it closes, and the seeding follows the results (`seedingByZSum`) until an organiser
@@ -46,7 +48,19 @@ const MAX_PAGES = 60
 /** A lobby's own history is 100 events a page; a qualifier lobby is a few dozen events in all. */
 const MAX_EVENT_PAGES = 10
 
-const LOBBY_NAME = /^TP:\s*\(Qualifiers\)\s*vs\s*\(Lobby\s*([^)]+)\)\s*$/i
+/** Everything a regular expression reads as more than itself, so an acronym is matched literally. */
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+let lobbyName: RegExp | undefined
+
+/**
+ * `<ACRONYM>: (Qualifiers) vs (Lobby <ID>)`, capturing the ID. Built on first use rather than when
+ * the module loads, so it reads the runtime config the process was started with.
+ */
+const lobbyNamePattern = (): RegExp => lobbyName ??= new RegExp(
+  `^${escapeRegExp(useRuntimeConfig().public.tournamentAcronym)}:\\s*\\(Qualifiers\\)\\s*vs\\s*\\(Lobby\\s*([^)]+)\\)\\s*$`,
+  'i'
+)
 
 /** `Lobby 12`, `#12` and `12` all name the same lobby. */
 export const lobbyKey = (id: string): string => id.toLowerCase().replace(/^lobby/, '').replace(/[\s#]/g, '')
@@ -55,7 +69,7 @@ export const lobbyKey = (id: string): string => id.toLowerCase().replace(/^lobby
 const matchKey = (matchId: number): string => `mp:${matchId}`
 
 const keyFor = (match: OsuMatch): string => {
-  const id = LOBBY_NAME.exec(match.name)?.[1]
+  const id = lobbyNamePattern().exec(match.name)?.[1]
 
   return id == null ? matchKey(match.matchId) : lobbyKey(id)
 }
@@ -130,7 +144,7 @@ async function scan(since: number): Promise<boolean> {
       if (stopAt != null && match.matchId <= stopAt) return changed
       if (match.startedAt < since) return changed
 
-      if (!LOBBY_NAME.test(match.name) || lobbyByMatchId(match.matchId)) continue
+      if (!lobbyNamePattern().test(match.name) || lobbyByMatchId(match.matchId)) continue
 
       // A lobby remade after a crash keeps its name. Both are kept: the newer one is the one being
       // played, and whatever was played in the older one still counts.

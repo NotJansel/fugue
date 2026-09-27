@@ -13,7 +13,6 @@
 export type Lang = 'en' | 'de'
 
 const en = {
-  'app.title': 'Trinitas Proelium',
   'app.outdated': 'A new version of the dashboard is live. The page reloads once your unsaved changes are saved or discarded.',
   'app.reload': 'Reload now',
   'app.language': 'Language',
@@ -129,7 +128,7 @@ const en = {
   'seeding.followsResults': 'While unlocked, the seeding follows the qualifier results: every time a lobby is read, players are reordered by their Z-sum.',
 
   'lobbies.title': 'Qualifier lobbies',
-  'lobbies.hint': 'Lobbies named "TP: (Qualifiers) vs (Lobby …)" are found on their own within minutes of opening. Add any other by its osu! match link.',
+  'lobbies.hint': 'Lobbies named "{acronym}: (Qualifiers) vs (Lobby …)" are found on their own within minutes of opening. Add any other by its osu! match link.',
   'lobbies.empty': 'No lobby has been found yet.',
   'lobbies.link': 'osu! match link or ID',
   'lobbies.add': 'Add lobby',
@@ -421,7 +420,6 @@ const en = {
 }
 
 const de: Record<keyof typeof en, string> = {
-  'app.title': 'Trinitas Proelium',
   'app.outdated': 'Eine neue Version des Dashboards ist live. Die Seite lädt neu, sobald deine ungespeicherten Änderungen gespeichert oder verworfen sind.',
   'app.reload': 'Jetzt neu laden',
   'app.language': 'Sprache',
@@ -537,7 +535,7 @@ const de: Record<keyof typeof en, string> = {
   'seeding.followsResults': 'Solange es nicht gesperrt ist, folgt das Seeding den Qualifier-Ergebnissen: Bei jedem Einlesen einer Lobby werden die Spieler nach ihrer Z-Summe sortiert.',
 
   'lobbies.title': 'Qualifier-Lobbys',
-  'lobbies.hint': 'Lobbys mit dem Namen "TP: (Qualifiers) vs (Lobby …)" werden wenige Minuten nach dem Öffnen von selbst gefunden. Jede andere lässt sich über ihren osu!-Match-Link hinzufügen.',
+  'lobbies.hint': 'Lobbys mit dem Namen "{acronym}: (Qualifiers) vs (Lobby …)" werden wenige Minuten nach dem Öffnen von selbst gefunden. Jede andere lässt sich über ihren osu!-Match-Link hinzufügen.',
   'lobbies.empty': 'Noch keine Lobby gefunden.',
   'lobbies.link': 'osu!-Match-Link oder ID',
   'lobbies.add': 'Lobby hinzufügen',

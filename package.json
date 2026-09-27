@@ -1,5 +1,5 @@
 {
-  "name": "basierte-auktionen",
+  "name": "fugue",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,5 +28,11 @@
     "vue-tsc": "^3.3.11"
   },
   "packageManager": "pnpm@11.24.0",
-  "description": "osu! tournament auction bot and dashboard"
+  "description": "osu! tournament auction bot and dashboard, built for Trinitas Proelium",
+  "license": "MIT",
+  "author": "Jannik Reimers <me@jansel.dev>",
+  "repository": {
+    "type": "git",
+    "url": "https://git.jansel.dev/jansel/fugue.git"
+  }
 }

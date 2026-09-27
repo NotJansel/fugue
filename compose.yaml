@@ -32,6 +32,12 @@ services:
       - ./data:/bot/data
 
     environment:
+      # --- Tournament ----------------------------------------------------------------------------
+      # Shown across the dashboard; the acronym is what qualifier lobbies are named after,
+      # "<ACRONYM>: (Qualifiers) vs (Lobby <ID>)".
+      NUXT_PUBLIC_TOURNAMENT_NAME: ${TOURNAMENT_NAME:-Trinitas Proelium}
+      NUXT_PUBLIC_TOURNAMENT_ACRONYM: ${TOURNAMENT_ACRONYM:-TP}
+
       # --- Database ------------------------------------------------------------------------------
       # The Postgres service below. Nothing outside the stack needs to reach it.
       DATABASE_URL: postgres://fugue:${POSTGRES_PASSWORD:-fugue}@postgres:5432/fugue

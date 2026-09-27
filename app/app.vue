@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { load, connect } = useDashboard()
-const { lang, t } = useLang()
+const { lang } = useLang()
+const { tournamentName } = useRuntimeConfig().public
 
 // Fetched on the server so the first paint already has the tournament on it; the event stream takes
 // over the moment the page is alive, and every later render comes from there.
@@ -35,7 +36,7 @@ useHead({
 })
 
 useSeoMeta({
-  title: () => t('app.title'),
+  title: tournamentName,
   robots: 'noindex'
 })
 </script>

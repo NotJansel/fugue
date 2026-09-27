@@ -28,7 +28,7 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
     })
   }
 
-  sendBroadcast(message, user.osuUsername ?? user.username, seconds > 0 ? seconds * 1000 : null)
+  await sendBroadcast(message, user.osuUsername ?? user.username, seconds > 0 ? seconds * 1000 : null)
 
   return { ok: true, message: 'Sent to everyone.', code: 'ok.broadcast.sent' }
 })

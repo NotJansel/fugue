@@ -1,5 +1,6 @@
 import { defineNitroPlugin } from 'nitropack/runtime'
 import { startBot, stopBot } from '../bot'
+import { loadBroadcast } from '../utils/broadcast'
 import { shutdownAuction } from '../utils/auction'
 import { warnAboutMissingValues } from '../utils/config'
 import { closeDatabase, migrate } from '../utils/db'
@@ -29,7 +30,7 @@ export default defineNitroPlugin((nitro) => {
   const ready = migrate()
     .then(importLegacyData)
     .then(() => Promise.all([
-      loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies(), loadManualScores()
+      loadTournament(), loadPurses(), loadOsuLinks(), loadLobbies(), loadManualScores(), loadBroadcast()
     ]))
     .then(() => Promise.all([startBot(), checkOsuApi()]))
     // After the stores, so the first poll already knows which lobbies are still to be read.

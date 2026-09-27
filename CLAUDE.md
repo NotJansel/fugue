@@ -178,8 +178,8 @@ field breaks existing deployments.
   seconds, but only a result that arrives while the page is open, so a reload does not replay it. A
   cancelled auction announces nothing.
 - An organiser can **message every open dashboard** (`POST /api/broadcast`, the megaphone in the
-  header). The last message is kept in memory (`server/utils/broadcast.ts`) and rides on the state
-  push as `DashboardState.broadcast`. `BroadcastBanner.vue` is *derived* from it rather than
+  header). The last message is persisted (`server/utils/broadcast.ts`, table `broadcast`, one row
+  at most) so it outlasts a restart, and rides on the state push as `DashboardState.broadcast`. `BroadcastBanner.vue` is *derived* from it rather than
   announcing arrivals: whatever is on file shows, on a page open when it went out or loaded later,
   for the `durationMs` the organiser chose (up to an hour, counted from when it was sent so every
   screen takes it down together) or until closed when that is `null`. Closing it hides it in that

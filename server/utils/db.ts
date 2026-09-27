@@ -268,6 +268,17 @@ const schema = `
   -- nothing was submitted, a lobby that was never read. One per player and pool slot, and the last
   -- word on that cell whatever a lobby or a sheet says about it. Deliberately without a foreign key:
   -- the players table is rewritten in full on every save, which would take these with it.
+  -- The message an organiser has up on every dashboard, if any. One row at most.
+  CREATE TABLE IF NOT EXISTS broadcast (
+    id            boolean PRIMARY KEY DEFAULT true CHECK (id),
+    broadcast_id  text NOT NULL,
+    message       text NOT NULL,
+    sender        text NOT NULL,
+    sent_at       bigint NOT NULL,
+    -- How long it stays up from sent_at; NULL until each viewer closes it.
+    duration_ms   integer
+  );
+
   CREATE TABLE IF NOT EXISTS manual_scores (
     osu_id  text NOT NULL,
     map_id  text NOT NULL,

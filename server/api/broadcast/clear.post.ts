@@ -8,7 +8,7 @@ import { requireAdmin } from '../../utils/session'
 export default defineEventHandler(async (event): Promise<ApiOk> => {
   await requireAdmin(event)
 
-  if (!clearBroadcast()) throw apiError(409, 'There is no message up.', 'err.broadcast.none')
+  if (!(await clearBroadcast())) throw apiError(409, 'There is no message up.', 'err.broadcast.none')
 
   return { ok: true, message: 'Message removed for everyone.', code: 'ok.broadcast.cleared' }
 })

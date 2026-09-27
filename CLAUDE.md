@@ -188,6 +188,11 @@ field breaks existing deployments.
   (`useArrivals.ts`): only something new that arrives while the page is open, and not more than a
   minute stale, is announced. The message is free text, shown as text and not translated; its
   500-character and one-hour limits are hand-copied in `BroadcastSender.vue`.
+- **Who is online** (`server/utils/presence.ts`): every open `/api/events` stream of a signed-in
+  session counts its Discord ID as present, and closing the last one stamps a last-seen time. Both
+  are in memory only. `TeamDto.presence` carries it for captain and stand-in, to organisers alone
+  (`null` for everyone else); `PresenceSummary.vue` counts a team as there when either is online.
+  Arriving and leaving altogether emit a change - a second tab does not.
 - **Bids are dashboard-only** (`POST /api/auction/bid`). Discord no longer accepts them. That
   endpoint is the one non-admin write in the API: it takes the bidder from the session and requires
   that Discord account to own a captain, or to be that team's **stand-in**, so a bid can never be

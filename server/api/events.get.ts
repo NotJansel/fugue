@@ -1,6 +1,7 @@
 import { createEventStream, defineEventHandler } from 'h3'
 import { onChange } from '../utils/bus'
 import { buildDashboardState } from '../utils/dashboard'
+import { trackPresence } from '../utils/presence'
 import { getUserSession, osuLinkSatisfied } from '../utils/session'
 
 const HEARTBEAT_MS = 20_000
@@ -35,10 +36,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const unsubscribe = onChange(schedule)
+  // An open stream is what "on the dashboard right now" means - what organisers see as online.
+  const leave = user ? trackPresence(user.id) : null
   const heartbeat = setInterval(push, HEARTBEAT_MS)
 
   stream.onClosed(() => {
     unsubscribe()
+    leave?.()
     clearInterval(heartbeat)
     if (pending) clearTimeout(pending)
   })

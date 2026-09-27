@@ -24,6 +24,11 @@ async function clearRosters() {
         </p>
       </div>
 
+      <PresenceSummary
+        v-if="isAdmin"
+        class="ms-auto"
+      />
+
       <UButton
         v-if="isAdmin && sold > 0"
         color="error"

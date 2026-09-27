@@ -28,5 +28,9 @@ export function useFormat() {
       ? '—'
       : new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'short' }).format(epochMillis)
 
-  return { money, number, duration, dateTime, locale }
+  /** `19:42` - when something happened tonight, which is all an auction evening needs. */
+  const time = (epochMillis: number | null | undefined): string =>
+    epochMillis == null ? '—' : new Intl.DateTimeFormat(locale.value, { timeStyle: 'short' }).format(epochMillis)
+
+  return { money, number, duration, dateTime, time, locale }
 }

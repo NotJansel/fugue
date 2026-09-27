@@ -8,6 +8,7 @@ import { currentImportProgress, lastImportOutcome } from './import-progress'
 import { allLobbies, allLobbyScores } from './lobby-store'
 import { allManualScores } from './manual-score-store'
 import { allOsuLinks } from './osu-link-store'
+import { presenceOf } from './presence'
 import { getAllBalances, getAllHolds } from './purse-store'
 import {
   captainCount,
@@ -164,7 +165,13 @@ export function buildDashboardState(user: UserSession | null): DashboardState {
       // The captain occupies one of the team's slots.
       slotsLeft: Math.max(tournament.teamSize - 1 - members.length, 0),
       slotsToMinimum: Math.max(tournament.minTeamSize - 1 - members.length, 0),
-      reserved: reserveFor(tournament, captain.osuId)
+      reserved: reserveFor(tournament, captain.osuId),
+      presence: admin
+        ? {
+            captain: captain.discordId ? presenceOf(captain.discordId) : null,
+            proxy: tournament.proxies?.[captain.osuId] ? presenceOf(tournament.proxies[captain.osuId]!.discordId) : null
+          }
+        : null
     }
   })
 

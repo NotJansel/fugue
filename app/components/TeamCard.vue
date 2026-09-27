@@ -93,8 +93,12 @@ const spentFraction = computed(() => {
                 @click="renaming = true"
               />
             </h3>
-            <p class="truncate text-xs text-muted">
-              #{{ team.captainSeed }} · {{ team.captainName }}
+            <p class="flex items-center gap-1.5 truncate text-xs text-muted">
+              <PresenceDot
+                v-if="team.presence?.captain"
+                :presence="team.presence.captain"
+              />
+              <span class="truncate">#{{ team.captainSeed }} · {{ team.captainName }}</span>
             </p>
           </template>
         </div>
@@ -170,6 +174,10 @@ const spentFraction = computed(() => {
         <UIcon
           name="i-lucide-user-round-cog"
           class="size-3.5 shrink-0"
+        />
+        <PresenceDot
+          v-if="team.presence?.proxy"
+          :presence="team.presence.proxy"
         />
         <span class="min-w-0 flex-1 truncate">
           {{ t('teams.proxy.label') }}

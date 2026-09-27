@@ -67,6 +67,10 @@ async function start(osuId: string | null) {
         <p class="text-sm text-muted">
           {{ t('pool.summary', { remaining: open.length, total: pool.length }) }}
         </p>
+        <PresenceSummary
+          v-if="isAdmin"
+          class="mt-2"
+        />
       </div>
 
       <div

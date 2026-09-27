@@ -505,6 +505,19 @@ export interface TeamDto {
   slotsToMinimum: number
   /** Gold this captain has to keep back to still fill `slotsToMinimum` at the starting price. */
   reserved: number
+  /**
+   * Whether the captain and the stand-in have the dashboard open right now - who could bid if an
+   * auction started. Organisers only: `null` for everyone else. Either side is `null` when there is
+   * no Discord account to look for (a captain with none linked, or no stand-in named).
+   */
+  presence: { captain: PresenceDto | null, proxy: PresenceDto | null } | null
+}
+
+export interface PresenceDto {
+  /** At least one dashboard tab of theirs is connected. */
+  online: boolean
+  /** When their last tab closed; `null` if they have not been on the dashboard since the server started. */
+  lastSeenAt: number | null
 }
 
 export interface ConfigDto {

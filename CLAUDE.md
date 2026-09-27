@@ -181,7 +181,9 @@ field breaks existing deployments.
   header). The last message is kept in memory (`server/utils/broadcast.ts`) and rides on the state
   push as `DashboardState.broadcast`; `BroadcastBanner.vue` shows it for the `durationMs` the
   organiser chose (up to an hour), counted from when it was sent so every screen takes it down
-  together, or until the viewer closes it when that is `null`. Both top banners go through
+  together, or until the viewer closes it when that is `null`.
+  `POST /api/broadcast/clear` takes it down on every screen at once (from the banner or the dialog).
+  Both top banners go through
   `onArrival` (`useArrivals.ts`): only something new that arrives while the page is open is
   announced, and only while it is fresh - a minute, or a timed message's own duration. The message
   is free text, shown as text and not translated; its 500-character and one-hour limits are

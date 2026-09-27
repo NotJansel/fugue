@@ -10,7 +10,7 @@ import type { Broadcast } from '#shared/types'
  * A timed one is measured from when it was *sent*, so every screen takes it down at the same moment,
  * and a tab that reconnects while it is still up gets the rest of it.
  */
-const { state } = useDashboard()
+const { state, isAdmin, api } = useDashboard()
 const { t } = useLang()
 
 const shown = ref<Broadcast | null>(null)
@@ -32,6 +32,25 @@ onArrival(() => state.value?.broadcast, (broadcast) => {
     timer = setTimeout(dismiss, broadcast.durationMs - elapsedMs.value)
   }
 }, broadcast => broadcast.durationMs)
+
+// An organiser taking the message down ends it on every screen. A newer one replaces it through
+// `onArrival` instead.
+watch(() => state.value?.broadcast?.id, (id) => {
+  if (shown.value && id == null) dismiss()
+})
+
+const withdrawing = ref(false)
+
+/** Takes the message down for everyone, not just on this screen. */
+async function withdraw() {
+  withdrawing.value = true
+
+  try {
+    await api('/api/broadcast/clear')
+  } finally {
+    withdrawing.value = false
+  }
+}
 
 onBeforeUnmount(() => clearTimeout(timer))
 </script>
@@ -63,6 +82,18 @@ onBeforeUnmount(() => clearTimeout(timer))
           <p class="mt-0.5 whitespace-pre-line break-words text-sm">
             {{ shown.message }}
           </p>
+          <UButton
+            v-if="isAdmin"
+            icon="i-lucide-trash-2"
+            color="neutral"
+            variant="link"
+            size="xs"
+            class="-ms-1.5 mt-1"
+            :loading="withdrawing"
+            @click="withdraw"
+          >
+            {{ t('broadcast.withdraw') }}
+          </UButton>
         </div>
 
         <UButton

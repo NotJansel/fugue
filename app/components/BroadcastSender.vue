@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** An organiser's way to put a message on every open dashboard at once. */
-const { api } = useDashboard()
+const { api, state } = useDashboard()
 const { t } = useLang()
 
 /** Kept in step with `BROADCAST_MAX_LENGTH` on the server, which refuses anything longer. */
@@ -17,6 +17,36 @@ const sending = ref(false)
 
 // Half a message typed out is work a deploy's reload would throw away.
 useUnsavedWork(() => open.value && message.value.trim() !== '')
+
+/**
+ * The message still up, if any - shown in the dialog so it can be taken down from there too. A timed
+ * one that has run out is up nowhere any more; `now` is taken when the dialog opens, which is when
+ * this is read.
+ */
+const now = ref(Date.now())
+watch(open, (isOpen) => {
+  if (isOpen) now.value = Date.now()
+})
+
+const current = computed(() => {
+  const broadcast = state.value?.broadcast
+  if (!broadcast) return null
+
+  return broadcast.durationMs == null || broadcast.at + broadcast.durationMs > now.value ? broadcast : null
+})
+
+const withdrawing = ref(false)
+
+/** Takes the current message down on every screen. */
+async function withdraw() {
+  withdrawing.value = true
+
+  try {
+    await api('/api/broadcast/clear')
+  } finally {
+    withdrawing.value = false
+  }
+}
 
 const sendable = computed(() => message.value.trim() !== '' && message.value.trim().length <= MAX_LENGTH)
 
@@ -54,6 +84,30 @@ async function send() {
     :description="t('broadcast.hint')"
   >
     <template #body>
+      <div
+        v-if="current"
+        class="mb-4 flex items-start gap-3 rounded-lg bg-elevated/50 px-3 py-2"
+      >
+        <div class="min-w-0 flex-1">
+          <p class="text-xs text-muted">
+            {{ t('broadcast.current', { name: current.from }) }}
+          </p>
+          <p class="mt-0.5 line-clamp-3 whitespace-pre-line break-words text-sm">
+            {{ current.message }}
+          </p>
+        </div>
+        <UButton
+          icon="i-lucide-trash-2"
+          color="error"
+          variant="subtle"
+          size="xs"
+          :loading="withdrawing"
+          @click="withdraw"
+        >
+          {{ t('broadcast.withdraw') }}
+        </UButton>
+      </div>
+
       <div class="space-y-2">
         <UTextarea
           v-model="message"

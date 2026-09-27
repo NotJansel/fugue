@@ -16,6 +16,16 @@ let last: Broadcast | null = null
 
 export const lastBroadcast = (): Broadcast | null => last
 
+/** Takes the message down on every open dashboard. Returns whether there was one to take down. */
+export function clearBroadcast(): boolean {
+  if (!last) return false
+
+  last = null
+  emitChange()
+
+  return true
+}
+
 /**
  * Sends `message` to every open dashboard, over the same state push everything else rides on. It
  * stays up for `durationMs`, or until each viewer closes it when that is `null`.

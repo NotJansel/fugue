@@ -70,6 +70,8 @@ const hasResults = computed(() => players.value.some(player => player.zSum != nu
 const newPlayer = ref('')
 const addingPlayer = ref(false)
 
+useUnsavedWork(() => describing.value != null || newPlayer.value.trim() !== '')
+
 async function addPlayer() {
   addingPlayer.value = true
 

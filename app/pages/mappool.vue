@@ -16,17 +16,6 @@ const columns = computed(() => state.value?.sheetColumns ?? [])
  * else's save. Discarding drops back to whatever the server last sent.
  */
 const draft = ref<QualifierMap[] | null>(null)
-
-// A deploy reloads every open tab, and a reload would take the draft with it - so it waits for this.
-const { unsavedWork } = useDashboard()
-
-watchEffect(() => {
-  unsavedWork.value = draft.value != null
-})
-
-onBeforeUnmount(() => {
-  unsavedWork.value = false
-})
 const saving = ref(false)
 const refreshing = ref(false)
 
@@ -182,6 +171,9 @@ const editing = ref<{ player: PlayerDto, map: QualifierMap } | null>(null)
 const cellScore = ref(0)
 const cellMods = ref('')
 const savingCell = ref(false)
+
+// A deploy reloads every open tab; an unsaved pool or an open score editor holds it off.
+useUnsavedWork(() => draft.value != null || editing.value != null)
 
 /** What an organiser typed for this cell before, if they typed one - `null` for a read score. */
 const manualFor = (osuId: string, mapId: string) =>

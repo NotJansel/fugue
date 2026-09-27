@@ -10,6 +10,13 @@ import type { AuctionResultDto } from '#shared/types'
  */
 const DISMISS_AFTER_MS = 10_000
 
+/**
+ * A result older than this when it arrives is not news: a tab that slept or lost its connection
+ * catches up on the state, not on the announcements it missed. Looser than the ten seconds, since
+ * `at` is the server's clock and the viewer's may be a little off it.
+ */
+const STALE_AFTER_MS = 60_000
+
 const { state } = useDashboard()
 const { t } = useLang()
 const { money } = useFormat()
@@ -36,6 +43,7 @@ onMounted(() => {
     () => state.value?.lastResult ?? null,
     (result, previous) => {
       if (!result || result.id === previous?.id) return
+      if (Date.now() - result.at > STALE_AFTER_MS) return
 
       clearTimeout(timer)
       shown.value = result
@@ -50,6 +58,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 <template>
   <div class="pointer-events-none fixed inset-x-0 top-20 z-50 flex justify-center px-4">
     <Transition
+      mode="out-in"
       enter-active-class="transition duration-300 ease-out"
       enter-from-class="-translate-y-4 opacity-0"
       leave-active-class="transition duration-200 ease-in"

@@ -19,7 +19,7 @@ import { emitChange } from './bus'
 import { query, valuesList, withTransaction } from './db'
 import { formatMods, parseMods } from './mods'
 import { serialiser } from './store-queue'
-import { captainForDiscordId, emptyTournament, seedingByZSum } from './tournament-model'
+import { captains, emptyTournament, seedingByZSum } from './tournament-model'
 
 /**
  * Single source of truth for the tournament: qualified players, seeding order, captains and team
@@ -835,35 +835,31 @@ export function updateTournamentConfig(patch: ConfigPatch): Promise<TournamentSt
 }
 
 /**
- * Records an auction result against the captain the winning Discord user controls.
+ * Records an auction result on `captainOsuId`'s roster - the captain the auction already resolved the
+ * winning bid to, so the sale lands on exactly the team the purse was settled for.
  *
- * Returns the captain's name on success, or `null` when the bidder isn't a captain - in which case
- * the sale is simply not tracked, rather than being attributed to the wrong team.
+ * Returns whether it was recorded. A captain who is no longer one, or a player no longer on the list,
+ * is simply not tracked rather than being attributed to the wrong team.
  */
-export async function recordSale(
-  playerOsuId: string,
-  winnerDiscordId: string,
-  price: number
-): Promise<string | null> {
-  let captainName: string | null = null
+export async function recordSale(playerOsuId: string, captainOsuId: string, price: number): Promise<boolean> {
+  let recorded = false
 
   await update((current) => {
-    const captain = captainForDiscordId(current, winnerDiscordId)
-    if (!captain) return current
+    if (!captains(current).some(captain => captain.osuId === captainOsuId)) return current
     if (!current.players.some(player => player.osuId === playerOsuId)) return current
 
-    captainName = captain.username
+    recorded = true
 
-    const members = current.rosters[captain.osuId] ?? []
+    const members = current.rosters[captainOsuId] ?? []
     if (members.some(member => member.osuId === playerOsuId)) return current
 
     return {
       ...current,
-      rosters: { ...current.rosters, [captain.osuId]: [...members, { osuId: playerOsuId, price }] }
+      rosters: { ...current.rosters, [captainOsuId]: [...members, { osuId: playerOsuId, price }] }
     }
   })
 
-  return captainName
+  return recorded
 }
 
 /** Removes a player from a team, e.g. to undo a mis-recorded auction. */

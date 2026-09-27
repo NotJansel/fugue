@@ -24,6 +24,8 @@ async function rename() {
 /** The stand-in's Discord ID being typed, or `null` while the editor is closed. */
 const proxyDraft = ref<string | null>(null)
 
+useUnsavedWork(() => renaming.value || proxyDraft.value != null)
+
 async function saveProxy() {
   const discordId = proxyDraft.value?.trim() || null
   proxyDraft.value = null

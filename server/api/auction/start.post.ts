@@ -5,7 +5,7 @@ import { config } from '../../utils/config'
 import { apiError } from '../../utils/http-error'
 import { fetchOsuUser, osuApiReady } from '../../utils/osu-api'
 import { requireAdmin } from '../../utils/session'
-import { playerDescription, pool, startingBid, unsoldPool } from '../../utils/tournament-model'
+import { playerDescription, pool, soldPlayerIds, startingBid, unsoldPool } from '../../utils/tournament-model'
 import { getTournament, replacePlayers } from '../../utils/tournament-store'
 
 interface Body {
@@ -72,6 +72,11 @@ export default defineEventHandler(async (event): Promise<ApiOk> => {
   // Captains and anyone below the field cut are not up for sale, whatever the request asks for.
   if (!pool(tournament).some(player => player.osuId === osuId)) {
     throw apiError(409, 'That player is not in the auction pool.', 'err.player.notInPool')
+  }
+
+  // Selling someone twice would put them on two rosters and charge two purses for them.
+  if (soldPlayerIds(tournament).has(osuId)) {
+    throw apiError(409, 'That player has already been sold.', 'err.player.sold')
   }
 
   const player = await resolveForAuction(tournament.players[index]!)

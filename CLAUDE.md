@@ -205,8 +205,10 @@ field breaks existing deployments.
   discarded.
 - A **deploy reloads every open tab**. `DashboardState.buildId` is the server's Nuxt build ID, and a
   tab whose own `useRuntimeConfig().app.buildId` differs reloads as soon as the reconnected stream
-  says so - once per build, guarded in `sessionStorage` so it can't loop. While `unsavedWork` is set
-  (the mappool draft) it only shows a banner and reloads once the draft is saved or discarded. In
+  says so - once per build, guarded in `sessionStorage` so it can't loop. While anything registered with
+  `useUnsavedWork` holds (the mappool draft or score editor, an open team, description or stand-in
+  editor, a typed-in player or lobby link) it only shows a banner and reloads once that is saved or
+  gone. In
   dev both IDs are `dev`, so it never fires there.
 - The dashboard is **English and German**, translated in the browser by `app/composables/useLang.ts`.
   The server does not translate what the page shows: API responses, tournament warnings and auction

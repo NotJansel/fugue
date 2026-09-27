@@ -209,30 +209,34 @@ async function end(auction: AuctionState): Promise<void> {
   if (auction.timer) clearTimeout(auction.timer)
   current = null
 
+  // A lead is a lead whatever it cost: with a starting price of 0, an opening bid of 0 buys the player.
   const winnerId = auction.highestBidder
   let notes = ''
 
-  if (winnerId != null && auction.highestBid > 0) {
-    const settled = await settleHold(winnerId, auction.highestBid)
+  if (winnerId == null) {
+    lastResult = resultOf(auction, null)
+  } else {
+    // Resolved before any money moves: someone who stopped being a captain while the clock ran - a
+    // field cut, a captain mode changed - has no roster to put the player on, so nothing is sold.
+    const captain = captainForDiscordId(getTournament(), winnerId)
 
-    if (settled) {
+    if (!captain) {
+      release(winnerId)
+      notes += ' The winning bidder no longer leads a team, so the sale did not go through.'
+    } else if (await settleHold(winnerId, auction.highestBid)) {
       notes += ` The winner's purse has been debited by ${auction.highestBid}.`
 
-      const team = await recordSale(auction.subject.osuId, winnerId, auction.highestBid)
-      if (team != null) notes += ` ${auction.subject.username} joins ${team}'s team.`
-
-      const captain = captainForDiscordId(getTournament(), winnerId)
-
-      if (captain) lastResult = resultOf(auction, { captainOsuId: captain.osuId, price: auction.highestBid })
+      if (await recordSale(auction.subject.osuId, captain.osuId, auction.highestBid)) {
+        notes += ` ${auction.subject.username} joins ${captain.username}'s team.`
+        lastResult = resultOf(auction, { captainOsuId: captain.osuId, price: auction.highestBid })
+      }
     } else {
       notes += ' Could not debit the winner\'s purse (insufficient funds or error).'
     }
   }
 
-  if (auction.highestBid === 0) lastResult = resultOf(auction, null)
-
-  const result = auction.highestBid > 0
-    ? `Auction ended! Winner: ${winnerId ? `<@${winnerId}>` : 'No one'} with bid ${auction.highestBid}.${notes}`
+  const result = winnerId != null
+    ? `Auction ended! Winner: <@${winnerId}> with bid ${auction.highestBid}.${notes}`
     : 'Auction ended! No bids were placed.'
 
   await announce(auction, result, winnerId != null ? rosterSummary(winnerId) : null)

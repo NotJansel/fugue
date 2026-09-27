@@ -14,6 +14,8 @@ const lobbies = computed(() => state.value?.lobbies ?? [])
 const link = ref('')
 const adding = ref(false)
 
+useUnsavedWork(() => link.value.trim() !== '')
+
 async function add() {
   adding.value = true
 

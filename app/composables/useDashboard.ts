@@ -17,13 +17,6 @@ function errorPayload(error: unknown): ApiEnvelope {
   return data?.data ?? data ?? {}
 }
 
-/**
- * The dashboard's single source of truth on the client.
- *
- * The page holds no state of its own: the server pushes a full `DashboardState` over SSE on every
- * change and everything re-renders from it. That is why an admin's edit shows up on every open tab at
- * once, and why no view has to guess what a write did to the rest of the tournament.
- */
 /** Remembers, for this tab, which server build it last reloaded for - so a reload can never loop. */
 const RELOADED_FOR_KEY = 'ba-reloaded-for'
 
@@ -51,16 +44,18 @@ function reloadOnto(buildId: string): void {
   window.location.reload()
 }
 
+/**
+ * The dashboard's single source of truth on the client.
+ *
+ * The page holds no state of its own: the server pushes a full `DashboardState` over SSE on every
+ * change and everything re-renders from it. That is why an admin's edit shows up on every open tab at
+ * once, and why no view has to guess what a write did to the rest of the tournament.
+ */
 export function useDashboard() {
   const state = useState<DashboardState | null>('ba-state', () => null)
   const connection = useState<Connection>('ba-connection', () => 'connecting')
   /** The server runs a different build than this page was built from - a deploy has happened. */
   const outdated = useState<boolean>('ba-outdated', () => false)
-  /**
-   * Something on the page holds work a reload would throw away - the mappool editor's draft. While
-   * it does, a new build only puts up a banner, and the reload waits until the work is saved or gone.
-   */
-  const unsavedWork = useState<boolean>('ba-unsaved-work', () => false)
   const { t, tCode } = useLang()
 
   /** The first read, used for server-side rendering; SSE takes over the moment the page is alive. */
@@ -82,7 +77,9 @@ export function useDashboard() {
     const ownBuild = useRuntimeConfig().app.buildId
     const serverBuild = computed(() => state.value?.buildId)
 
-    const stopWatching = watch([serverBuild, unsavedWork], ([build, unsaved]) => {
+    // While anything on screen holds unsaved work (`useUnsavedWork`), a new build only puts up the
+    // banner, and the reload waits until the work is saved or gone.
+    const stopWatching = watch([serverBuild, hasUnsavedWork], ([build, unsaved]) => {
       outdated.value = build != null && build !== ownBuild
       if (outdated.value && !unsaved) reloadOnto(build!)
     })
@@ -181,7 +178,6 @@ export function useDashboard() {
     load,
     connect,
     outdated,
-    unsavedWork,
     reloadNow,
     api,
     user,

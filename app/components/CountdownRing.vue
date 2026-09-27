@@ -2,25 +2,30 @@
 /**
  * The hammer, drawn as a ring so it reads from across the room. `waiting` draws the few seconds before
  * bidding opens instead, in a quieter colour - nothing can be done about those yet.
+ *
+ * The ring runs its own countdown to `endsAt` rather than being handed the seconds: it ticks five
+ * times a second, and a page that passed the numbers down would re-render whole with every tick.
  */
-const props = defineProps<{ seconds: number, fraction: number, size?: number, waiting?: boolean }>()
+const props = defineProps<{ endsAt: number | null, totalMs: number, size?: number, waiting?: boolean }>()
+
+const { seconds, fraction } = useCountdown(() => props.endsAt, () => props.totalMs)
 
 const size = computed(() => props.size ?? 84)
 const radius = computed(() => size.value / 2 - 5)
 const circumference = computed(() => 2 * Math.PI * radius.value)
-const offset = computed(() => circumference.value * (1 - props.fraction))
+const offset = computed(() => circumference.value * (1 - fraction.value))
 
 /** Gold for the whole run, red for the last three seconds - the point at which people start typing. */
 const stroke = computed(() => {
   if (props.waiting) return 'var(--color-umber-400)'
 
-  return props.seconds <= 3 ? 'var(--color-ember-500)' : 'var(--color-gold-500)'
+  return seconds.value <= 3 ? 'var(--color-ember-500)' : 'var(--color-gold-500)'
 })
 
 const tone = computed(() => {
   if (props.waiting) return 'text-muted'
 
-  return props.seconds <= 3 ? 'text-primary' : 'text-secondary'
+  return seconds.value <= 3 ? 'text-primary' : 'text-secondary'
 })
 </script>
 

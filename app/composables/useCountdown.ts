@@ -11,7 +11,10 @@ export const OPENING_DELAY_MS = 3_000
  * when the hammer falls no matter when it connected - and it is read against the server's clock
  * (`useServerClock`), so a viewer whose own clock is off still sees the right number.
  */
-export function useCountdown(endsAt: Ref<number | null | undefined>, totalMs = AUCTION_DURATION_MS) {
+export function useCountdown(
+  endsAt: MaybeRefOrGetter<number | null | undefined>,
+  totalMs: MaybeRefOrGetter<number> = AUCTION_DURATION_MS
+) {
   // `endsAt` is on the server's clock, so this counts on it too, not on whatever the viewer's says.
   const clock = useServerClock()
   const now = ref(clock.now())
@@ -27,14 +30,18 @@ export function useCountdown(endsAt: Ref<number | null | undefined>, totalMs = A
     if (timer) clearInterval(timer)
   })
 
-  const remainingMs = computed(() => endsAt.value ? Math.max(endsAt.value - now.value, 0) : 0)
+  const remainingMs = computed(() => {
+    const deadline = toValue(endsAt)
+
+    return deadline ? Math.max(deadline - now.value, 0) : 0
+  })
   const seconds = computed(() => Math.ceil(remainingMs.value / 1000))
   /**
    * 1 at the start of the countdown, 0 when it lapses - what the progress ring reads. Measured against
    * `totalMs`, by default the 20 seconds an auction runs for, so a late bid that puts the clock back up
    * to 10 shows as the ring refilling halfway.
    */
-  const fraction = computed(() => Math.min(remainingMs.value / totalMs, 1))
+  const fraction = computed(() => Math.min(remainingMs.value / toValue(totalMs), 1))
 
   return { seconds, remainingMs, fraction }
 }

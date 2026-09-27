@@ -100,6 +100,12 @@ export function useDashboard() {
       state.value = next
     }
 
+    // With nothing new to show, the heartbeat carries only the server's clock.
+    source.addEventListener('clock', (event: MessageEvent<string>) => {
+      connection.value = 'live'
+      clock.sync(Number(event.data))
+    })
+
     source.onerror = () => {
       connection.value = source.readyState === EventSource.CLOSED ? 'offline' : 'connecting'
     }

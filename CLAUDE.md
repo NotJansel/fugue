@@ -228,6 +228,12 @@ field breaks existing deployments.
   the client reads them against it: each pushed state carries `serverTime`, and `useServerClock`
   keeps the offset. Never compare one against a bare `Date.now()` in the app - a viewer whose clock
   is ten seconds slow would see a 13-second wait before bidding opens.
+- The event stream (`events.get.ts`, `dashboard-feed.ts`) builds the state **once per change per
+  audience** - guest, member, organiser; only `user` and `serverTime` differ within one - and sends
+  a connection nothing it would see no difference in, so a change only organisers can see (who is
+  online) re-renders no captain's page. The heartbeat is then a bare `clock` event. Every push
+  re-renders the whole page, so keep it that way: nothing per-connection in `buildDashboardState`
+  beyond what the audience decides, and nothing in the state that changes without a reason to.
 - The dashboard holds **no state of its own**: the server pushes a full `DashboardState` over SSE
   (`/api/events`) on every change and the client re-renders from it. The one exception is the mappool
   editor, which keeps an unsaved draft that renders instead of the pushed pool until it is saved or

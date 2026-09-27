@@ -18,7 +18,7 @@ const amount = ref<number>(0)
 const pending = ref(false)
 
 /** Bids are not taken for the first few seconds - the box can be filled in, the button waits. */
-const opening = useCountdown(computed(() => props.auction.opensAt), OPENING_DELAY_MS)
+const opening = useCountdown(() => props.auction.opensAt, OPENING_DELAY_MS)
 const waiting = computed(() => opening.remainingMs.value > 0)
 
 const available = computed(() => (myTeam.value?.balance ?? 0) - (myTeam.value?.held ?? 0))

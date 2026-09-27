@@ -5,12 +5,10 @@ const { state, auction, isAdmin, api, players } = useDashboard()
 const { t } = useLang()
 const { money, number } = useFormat()
 
-const endsAt = computed(() => auction.value?.endsAt ?? null)
-const { seconds, fraction } = useCountdown(endsAt)
-
 // The few seconds between the player going up and bids being taken, counted down on their own ring.
-const opensAt = computed(() => auction.value?.opensAt ?? null)
-const opening = useCountdown(opensAt, OPENING_DELAY_MS)
+// Only whether they are over is read here - the ring ticks by itself, so this page does not re-render
+// five times a second along with it.
+const opening = useCountdown(() => auction.value?.opensAt, OPENING_DELAY_MS)
 const waiting = computed(() => opening.remainingMs.value > 0)
 
 const cancelling = ref(false)
@@ -117,8 +115,8 @@ const remaining = computed(() => state.value?.poolRemaining ?? 0)
 
             <div class="flex shrink-0 flex-col items-center gap-1">
               <CountdownRing
-                :seconds="waiting ? opening.seconds.value : seconds"
-                :fraction="waiting ? opening.fraction.value : fraction"
+                :ends-at="(waiting ? auction.opensAt : auction.endsAt) ?? null"
+                :total-ms="waiting ? OPENING_DELAY_MS : AUCTION_DURATION_MS"
                 :waiting="waiting"
               />
               <span
